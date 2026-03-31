@@ -1,0 +1,935 @@
+/* Tax Calculator Modern UI */
+.tax-calculator-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8f9fa 0%, #f0f4ff 100%);
+}
+
+.content-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* Progress Steps */
+.calculator-progress {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+}
+
+.progress-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active .step-circle {
+  background: linear-gradient(135deg, #1a237e, #283593);
+  color: white;
+  transform: scale(1.1);
+  box-shadow: 0 4px 15px rgba(26, 35, 126, 0.3);
+}
+
+.progress-step.completed .step-circle {
+  background: #4caf50;
+  color: white;
+}
+
+.step-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  position: relative;
+  transition: all 0.3s ease;
+  z-index: 2;
+}
+
+.check-mark {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #4caf50;
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  border: 3px solid white;
+}
+
+.step-info {
+  text-align: center;
+}
+
+.step-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.25rem;
+  font-size: 1.1rem;
+}
+
+.step-description {
+  color: #666;
+  font-size: 0.9rem;
+  max-width: 150px;
+  line-height: 1.3;
+}
+
+.step-connector {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: #e0e0e0;
+  z-index: 1;
+}
+
+.progress-step:last-child .step-connector {
+  display: none;
+}
+
+/* Step Content */
+.calculator-content {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.step-content {
+  padding: 2.5rem;
+}
+
+.step-header {
+  margin-bottom: 2rem;
+}
+
+.step-header h3 {
+  font-size: 1.8rem;
+  color: #1a237e;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.step-header p {
+  color: #666;
+  font-size: 1.1rem;
+  max-width: 800px;
+  line-height: 1.5;
+}
+
+/* Vehicle Step */
+.popular-vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.vehicle-card {
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: white;
+}
+
+.vehicle-card:hover {
+  border-color: #bbdefb;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.1);
+}
+
+.vehicle-card.selected {
+  border-color: #1a237e;
+  background: #f0f4ff;
+}
+
+.vehicle-icon {
+  font-size: 2rem;
+  width: 60px;
+  height: 60px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vehicle-card.selected .vehicle-icon {
+  background: #1a237e;
+  color: white;
+}
+
+.vehicle-info {
+  flex: 1;
+}
+
+.vehicle-info h4 {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.vehicle-info p {
+  margin: 0 0 0.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.vehicle-tag {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.select-indicator {
+  color: #999;
+  font-size: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.vehicle-card.selected .select-indicator {
+  color: #4caf50;
+  transform: scale(1.2);
+}
+
+.or-divider {
+  text-align: center;
+  margin: 2rem 0;
+  position: relative;
+}
+
+.or-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.or-divider span {
+  display: inline-block;
+  background: white;
+  padding: 0 1rem;
+  color: #999;
+  font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+.selected-vehicle-preview {
+  background: #e8f5e9;
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  border: 1px solid #c8e6c9;
+}
+
+.selected-vehicle-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.selected-icon {
+  font-size: 1.5rem;
+  color: #2e7d32;
+}
+
+/* Upload Step */
+.upload-progress-summary {
+  margin-top: 2rem;
+}
+
+.progress-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.progress-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stat-label {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.stat-status {
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.stat-status.complete {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.stat-status.incomplete {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.progress-bar {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #8bc34a);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+.quick-upload-options {
+  margin-top: 2rem;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.quick-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem;
+  border: 2px dashed #bdbdbd;
+  border-radius: 10px;
+  background: #fafafa;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.quick-action-btn:hover {
+  border-color: #2196f3;
+  background: #f0f7ff;
+  transform: translateY(-2px);
+}
+
+.action-icon {
+  font-size: 2rem;
+}
+
+.action-text {
+  font-weight: 500;
+  color: #333;
+  text-align: center;
+}
+
+/* Verify Step */
+.verification-status-card {
+  margin-top: 2rem;
+}
+
+.status-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.status-icon {
+  font-size: 2.5rem;
+}
+
+.status-info h4 {
+  margin: 0 0 0.25rem;
+  color: #333;
+}
+
+.status-info p {
+  margin: 0;
+  color: #666;
+}
+
+.status-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-label {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  color: #333;
+  font-weight: 500;
+}
+
+.detail-value.status-ready {
+  color: #2e7d32;
+  font-weight: 600;
+}
+
+/* Calculate Step */
+.vehicle-summary-card {
+  margin-bottom: 2rem;
+}
+
+.vehicle-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.summary-label {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.summary-value {
+  color: #333;
+  font-weight: 500;
+}
+
+.summary-value.highlight {
+  color: #1a237e;
+  font-weight: 700;
+}
+
+.calculation-tips {
+  margin-top: 2rem;
+}
+
+.tips-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tips-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
+  color: #666;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.tips-list li:before {
+  content: '💡';
+  position: absolute;
+  left: 0;
+  top: 0.75rem;
+}
+
+.tips-list li:last-child {
+  border-bottom: none;
+}
+
+/* Review Step */
+.success-banner {
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+  border-radius: 10px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.banner-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.banner-icon {
+  font-size: 3rem;
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-text h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+}
+
+.banner-text p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.banner-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.saved-calculations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.saved-calculation {
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.saved-calculation:hover {
+  border-color: #bbdefb;
+  background: #f8f9fa;
+}
+
+.calc-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.calc-vehicle {
+  font-weight: 500;
+  color: #333;
+}
+
+.calc-tax {
+  font-weight: 600;
+  color: #1a237e;
+}
+
+.calc-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.view-all-link {
+  text-align: center;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  margin-top: 1rem;
+}
+
+.view-all-link button {
+  background: none;
+  border: none;
+  color: #1a237e;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.view-all-link button:hover {
+  text-decoration: underline;
+}
+
+.important-notes {
+  background: #fff3e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.notes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.notes-list li {
+  padding: 0.5rem 0;
+  color: #666;
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.notes-list li:before {
+  content: '⚠️';
+  position: absolute;
+  left: 0;
+  top: 0.5rem;
+}
+
+.review-actions {
+  background: white;
+  border-top: 1px solid #e0e0e0;
+  padding-top: 2rem;
+  margin-top: 2rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+.action-help {
+  text-align: center;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.action-help a {
+  color: #1a237e;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.action-help a:hover {
+  text-decoration: underline;
+}
+
+/* Navigation */
+.calculator-navigation {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.nav-buttons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.step-indicator {
+  color: #666;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.completion-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.nav-help {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #eee;
+  color: #666;
+}
+
+.nav-help a {
+  color: #1a237e;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nav-help a:hover {
+  text-decoration: underline;
+}
+
+/* Modal Styles */
+.success-modal {
+  text-align: center;
+  padding: 2rem;
+}
+
+.success-modal .modal-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+}
+
+.success-modal h3 {
+  margin: 0 0 1rem;
+  color: #333;
+}
+
+.success-modal p {
+  color: #666;
+  margin-bottom: 2rem;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.save-modal .description-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.save-options {
+  margin-top: 1.5rem;
+}
+
+.save-options h4 {
+  margin: 0 0 1rem;
+  color: #333;
+}
+
+.options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.option-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  color: #333;
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.export-option {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.export-option:hover {
+  border-color: #bbdefb;
+  background: #f8f9fa;
+}
+
+.option-icon {
+  font-size: 2rem;
+  width: 60px;
+  height: 60px;
+  background: #f5f5f5;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.option-info {
+  flex: 1;
+}
+
+.option-info h4 {
+  margin: 0 0 0.25rem;
+  color: #333;
+}
+
+.option-info p {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.export-notes {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid #1a237e;
+}
+
+.export-notes h4 {
+  margin: 0 0 1rem;
+  color: #333;
+}
+
+.export-notes ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #666;
+}
+
+.export-notes li {
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .progress-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .content-container {
+    padding: 1rem;
+  }
+  
+  .calculator-progress {
+    padding: 1.5rem;
+  }
+  
+  .progress-step {
+    flex: none;
+    width: 33.33%;
+  }
+  
+  .step-circle {
+    width: 50px;
+    height: 50px;
+    font-size: 1.2rem;
+  }
+  
+  .step-title {
+    font-size: 0.9rem;
+  }
+  
+  .step-description {
+    display: none;
+  }
+  
+  .step-content {
+    padding: 1.5rem;
+  }
+  
+  .popular-vehicles-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  
+  .vehicle-summary {
+    grid-template-columns: 1fr;
+  }
+  
+  .banner-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .nav-buttons {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .progress-step {
+    width: 50px;
+  }
+  
+  .step-info {
+    display: none;
+  }
+  
+  .step-connector {
+    display: none;
+  }
+  
+  .progress-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .quick-actions {
+    grid-template-columns: 1fr;
+  }
+  
+  .export-option {
+    flex-direction: column;
+    text-align: center;
+  }
+}

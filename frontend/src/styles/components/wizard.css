@@ -1,0 +1,346 @@
+/* Wizard Stepper */
+.wizard-stepper {
+    margin-bottom: 3rem;
+    position: relative;
+  }
+  
+  .stepper-container {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  
+  .stepper-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    flex: 1;
+    z-index: 2;
+  }
+  
+  .stepper-step.clickable {
+    cursor: pointer;
+  }
+  
+  .stepper-step.clickable:hover .step-number {
+    transform: scale(1.1);
+  }
+  
+  .step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    transition: all 0.3s ease;
+    z-index: 2;
+  }
+  
+  .stepper-step.active .step-number {
+    background: #1a237e;
+    color: white;
+    box-shadow: 0 4px 8px rgba(26, 35, 126, 0.3);
+  }
+  
+  .stepper-step.completed .step-number {
+    background: #4caf50;
+    color: white;
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+  }
+  
+  .step-info {
+    text-align: center;
+    max-width: 150px;
+  }
+  
+  .step-title {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+  }
+  
+  .stepper-step.active .step-title {
+    color: #1a237e;
+    font-weight: 700;
+  }
+  
+  .stepper-step.completed .step-title {
+    color: #4caf50;
+  }
+  
+  .step-description {
+    font-size: 0.85rem;
+    color: #666;
+    line-height: 1.3;
+  }
+  
+  .step-connector {
+    position: absolute;
+    top: 20px;
+    left: 70px;
+    right: 70px;
+    height: 2px;
+    background: #e0e0e0;
+    z-index: 1;
+  }
+  
+  .stepper-step.completed .step-connector {
+    background: #4caf50;
+  }
+  
+  .step-progress {
+    height: 4px;
+    background: #e0e0e0;
+    border-radius: 2px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .progress-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: linear-gradient(90deg, #1a237e, #283593);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  
+  /* Step Container */
+  .wizard-step-container {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  }
+  
+  .step-header {
+    padding: 2rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #f0f4ff 100%);
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .step-header-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .step-indicator {
+    background: #1a237e;
+    color: white;
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  
+  .step-current {
+    font-size: 2rem;
+    line-height: 1;
+  }
+  
+  .step-total {
+    font-size: 1rem;
+    opacity: 0.8;
+  }
+  
+  .step-header-content {
+    flex: 1;
+  }
+  
+  .step-title {
+    margin: 0 0 0.5rem;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1a237e;
+  }
+  
+  .step-subtitle {
+    margin: 0;
+    color: #666;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    max-width: 600px;
+  }
+  
+  .step-header-footer {
+    padding-top: 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+  
+  .step-content {
+    padding: 2rem;
+  }
+  
+  /* Navigation Buttons */
+  .wizard-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 2rem;
+    background: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+  }
+  
+  .navigation-left,
+  .navigation-right {
+    display: flex;
+    gap: 1rem;
+  }
+  
+  /* Multi-step Form */
+  .multi-step-form {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+  }
+  
+  .step-content-wrapper {
+    flex: 1;
+    padding: 2rem;
+  }
+  
+  .step-actions {
+    padding: 1.5rem 2rem;
+    background: #f8f9fa;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+  }
+  
+  /* Step Transitions */
+  .step-transition-enter {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  
+  .step-transition-enter-active {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 300ms, transform 300ms;
+  }
+  
+  .step-transition-exit {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .step-transition-exit-active {
+    opacity: 0;
+    transform: translateX(-100px);
+    transition: opacity 300ms, transform 300ms;
+  }
+  
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .stepper-container {
+      flex-wrap: wrap;
+    }
+    
+    .stepper-step {
+      width: 50%;
+      margin-bottom: 1.5rem;
+    }
+    
+    .step-connector {
+      display: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .wizard-stepper {
+      margin-bottom: 2rem;
+    }
+    
+    .stepper-step {
+      width: 100%;
+      flex-direction: row;
+      align-items: flex-start;
+      text-align: left;
+      margin-bottom: 1rem;
+    }
+    
+    .step-number {
+      margin-bottom: 0;
+      margin-right: 1rem;
+      flex-shrink: 0;
+    }
+    
+    .step-info {
+      text-align: left;
+      max-width: none;
+    }
+    
+    .step-header-info {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .step-title {
+      font-size: 1.5rem;
+    }
+    
+    .step-content {
+      padding: 1.5rem;
+    }
+    
+    .wizard-navigation {
+      flex-direction: column;
+      gap: 1rem;
+    }
+    
+    .navigation-left,
+    .navigation-right {
+      width: 100%;
+    }
+    
+    .navigation-left {
+      order: 2;
+    }
+    
+    .navigation-right {
+      order: 1;
+      justify-content: space-between;
+    }
+    
+    .navigation-right .btn {
+      flex: 1;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .step-indicator {
+      width: 50px;
+      height: 50px;
+    }
+    
+    .step-current {
+      font-size: 1.5rem;
+    }
+    
+    .step-title {
+      font-size: 1.3rem;
+    }
+    
+    .step-subtitle {
+      font-size: 1rem;
+    }
+  }

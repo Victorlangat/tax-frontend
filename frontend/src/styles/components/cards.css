@@ -1,0 +1,154 @@
+.smarttax-card {
+    background: white;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+    overflow: hidden;
+  }
+  
+  .smarttax-card.with-border {
+    border: 1px solid #e0e0e0;
+  }
+  
+  .smarttax-card.with-padding .card-content {
+    padding: 1.5rem;
+  }
+  
+  .smarttax-card.none {
+    box-shadow: none;
+  }
+  
+  .smarttax-card.small {
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  .smarttax-card.medium {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+  
+  .smarttax-card.large {
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+  }
+  
+  .smarttax-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Card Header */
+  .card-header {
+    padding: 1.25rem 1.5rem 0.5rem;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .card-title-container {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .card-icon {
+    font-size: 1.5rem;
+    color: #1a237e;
+    width: 40px;
+    height: 40px;
+    background: #f0f4ff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .card-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #1a237e;
+  }
+  
+  .card-subtitle {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    color: #666;
+  }
+  
+  /* Card Content */
+  .card-content {
+    min-height: 100px;
+  }
+  
+  /* Card Footer */
+  .card-footer {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  /* Special Card Types */
+  .stat-card {
+    text-align: center;
+    padding: 1.5rem;
+  }
+  
+  .stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #1a237e;
+    margin: 0.5rem 0;
+  }
+  
+  .stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .stat-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+  
+  .stat-change.positive {
+    background: #e8f5e9;
+    color: #2e7d32;
+  }
+  
+  .stat-change.negative {
+    background: #ffebee;
+    color: #c62828;
+  }
+  
+  /* Interactive Card */
+  .card-interactive {
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .card-interactive:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Dashboard Cards */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .card-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+    }
+  }

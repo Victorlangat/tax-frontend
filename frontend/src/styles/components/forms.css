@@ -1,0 +1,205 @@
+.form-group {
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+  
+  .form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+    font-size: 0.95rem;
+  }
+  
+  .form-label .required {
+    color: #f44336;
+    margin-left: 0.25rem;
+  }
+  
+  .input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  
+  .smarttax-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    transition: all 0.2s ease;
+    font-family: inherit;
+  }
+  
+  .smarttax-input:focus {
+    outline: none;
+    border-color: #1a237e;
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+  }
+  
+  .smarttax-input:disabled {
+    background: #f5f5f5;
+    color: #999;
+    cursor: not-allowed;
+  }
+  
+  .smarttax-input.input-error {
+    border-color: #f44336;
+  }
+  
+  .smarttax-input.input-error:focus {
+    box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.1);
+  }
+  
+  .input-icon {
+    position: absolute;
+    left: 1rem;
+    color: #666;
+    font-size: 1.1rem;
+  }
+  
+  .smarttax-input.has-icon {
+    padding-left: 3rem;
+  }
+  
+  .input-error-icon {
+    position: absolute;
+    right: 1rem;
+    color: #f44336;
+  }
+  
+  .helper-text {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: #666;
+  }
+  
+  .error-text {
+    margin-top: 0.25rem;
+    font-size: 0.85rem;
+    color: #f44336;
+  }
+  
+  /* Select Input */
+  .smarttax-select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1rem;
+    padding-right: 2.5rem;
+  }
+  
+  .smarttax-select:focus {
+    outline: none;
+    border-color: #1a237e;
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+  }
+  
+  /* Textarea */
+  .smarttax-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: white;
+    color: #333;
+    font-family: inherit;
+    min-height: 100px;
+    resize: vertical;
+  }
+  
+  .smarttax-textarea:focus {
+    outline: none;
+    border-color: #1a237e;
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+  }
+  
+  /* Checkbox and Radio */
+  .form-check {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  
+  .form-check-input {
+    margin-right: 0.5rem;
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+  
+  .form-check-label {
+    font-size: 0.95rem;
+    color: #333;
+    cursor: pointer;
+  }
+  
+  /* Form Groups Layout */
+  .form-row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .form-col {
+    flex: 1;
+  }
+  
+  /* Search Input */
+  .search-input {
+    position: relative;
+  }
+  
+  .search-input .input-icon {
+    left: 1rem;
+    color: #666;
+  }
+  
+  .search-input input {
+    padding-left: 3rem;
+  }
+  
+  /* File Upload */
+  .file-upload {
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    padding: 2rem;
+    text-align: center;
+    background: #fafafa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .file-upload:hover {
+    border-color: #1a237e;
+    background: #f0f4ff;
+  }
+  
+  .file-upload input[type="file"] {
+    display: none;
+  }
+  
+  .file-upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+  
+  .file-upload-icon {
+    font-size: 2rem;
+    color: #1a237e;
+  }
