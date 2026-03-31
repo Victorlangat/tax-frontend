@@ -19,37 +19,21 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 30 }, (_, i) => currentYear - i);
 
-  // Set makes - prioritize props from parent (dynamic from CRSP), fallback to API
   useEffect(() => {
-    if (availableMakes && availableMakes.length > 0) {
-      // Use makes passed from parent (from CRSP data)
+    if (availableMakes.length > 0) {
       setMakes(availableMakes);
     } else {
-      // Fallback: fetch from API
       fetchMakes();
     }
   }, [availableMakes]);
 
-  // Update models when availableModels prop changes or when make changes
   useEffect(() => {
-    if (availableModels && typeof availableModels === 'object' && formData.make && availableModels[formData.make]) {
-      // Get models for the selected make from the object
+    if (availableModels[formData.make]) {
       setModels(availableModels[formData.make]);
     } else if (formData.make) {
-      // Fallback: fetch models from API if not available in props
-      fetchModels(formData.make);
+      fetchModelsForMake(formData.make);
     }
   }, [availableModels, formData.make]);
-
-  // Fetch models when make changes
-  useEffect(() => {
-    if (formData.make) {
-      fetchModels(formData.make);
-    } else {
-      setModels([]);
-      setFormData(prev => ({ ...prev, model: '' }));
-    }
-  }, [formData.make]);
 
   const fetchMakes = async () => {
     try {
@@ -60,12 +44,11 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
       }
     } catch (error) {
       console.error('Error fetching makes:', error);
-      // Fallback to default makes
-      setMakes(['Toyota', 'Suzuki', 'Mazda', 'Honda', 'Nissan', 'Mitsubishi', 'Subaru', 'Lexus', 'Volkswagen', 'BMW', 'Mercedes', 'Ford', 'Hyundai', 'Kia', 'Volvo', 'Audi', 'Porsche', 'Land Rover', 'Jaguar', 'Peugeot']);
+      setMakes(['Toyota', 'Suzuki', 'Mazda', 'Honda', 'Nissan']);
     }
   };
 
-  const fetchModels = async (make) => {
+  const fetchModelsForMake = async (make) => {
     try {
       const response = await fetch(`http://localhost:5000/api/vehicles/suggestions?type=model&make=${encodeURIComponent(make)}`);
       const data = await response.json();
@@ -78,11 +61,10 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
     }
   };
 
-  const handleModelInputChange = useCallback(async (value) => {
+  const handleModelInputChange = useCallback((value) => {
     setFormData(prev => ({ ...prev, model: value }));
     
     if (value.length >= 1 && formData.make) {
-      // Filter local models based on input
       const filtered = models.filter(m => 
         m.toLowerCase().includes(value.toLowerCase())
       );
@@ -111,7 +93,6 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Clean up empty fields
     const cleanData = { ...formData };
     Object.keys(cleanData).forEach(key => {
       if (cleanData[key] === '' || cleanData[key] === undefined) {
@@ -119,7 +100,6 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
       }
     });
     
-    // Ensure at least make and model are provided
     if (!cleanData.make || !cleanData.model) {
       alert('Please select a make and enter a model');
       return;
@@ -155,7 +135,7 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
             className="form-select"
             required
           >
-            <option value="">Select Make</option> 
+            <option value="">Select Make</option>
             {makes.map(make => (
               <option key={make} value={make}>{make}</option>
             ))}
@@ -181,69 +161,14 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
               }
             }}
             onBlur={() => {
-              // Delay to allow click on suggestion
               setTimeout(() => setShowModelSuggestions(false), 200);
             }}
             className="form-input"
             placeholder={formData.make ? "Enter model name" : "Select make first"}
             required
-            disabled={false || !formData.make}
+            disabled={!formData.make}
             autoComplete="off"
           />
-</xai:function_call > 
-
-Wait, better: use local loading.
-
-First add const [loading, setLoading] = useState(false); already there.
-
-Then change prop to { onSubmit, loading, availableMakes = [], availableModels = [] }
-
-But previous prop removal was partial.
-
-Since file read, now edit with specific lines.
-
-Line by line for remaining.
-
-Next model input:
-
-old_str = `            disabled={parentLoading || !formData.make}
-            autoComplete="off"
-          />`
-
-new_str = `            disabled={loading || !formData.make}
-            autoComplete="off"
-          />`
-
-But loading already defined.
-
-The component has const [loading, setLoading] = useState(false); yes.
-
-So replace parentLoading with loading everywhere.
-
-But since multiple, make unique multi-line.
-
-First one for year select:
-
-old_str = `            className="form-select"
-            disabled={parentLoading}
-          >
-            <option value="">Any Year</option>`
-
-etc.
-
-Use parallel for different lines.
-
-Since error "Multiple matches", need unique context.
-
-For VehicleLookupForm.js, replace all disabled={parentLoading} with disabled={false}
-
-But multiple, so multi tool.
-
-Let's do model input.
-</thinking>
-
-<xai:function_call name="edit_file">
-<parameter name="path">tax-project/smarttax-frontend/src/components/vehicle/VehicleLookupForm.js
           {showModelSuggestions && modelSuggestions.length > 0 && (
             <ul className="suggestions-dropdown">
               {modelSuggestions.map((model, index) => (
@@ -270,7 +195,6 @@ Let's do model input.
             value={formData.year}
             onChange={handleChange}
             className="form-select"
-            disabled={parentLoading}
           >
             <option value="">Any Year</option>
             {years.map(year => (
@@ -288,7 +212,6 @@ Let's do model input.
             onChange={handleChange}
             className="form-input"
             placeholder="e.g., 1500"
-            disabled={parentLoading}
             min="0"
             step="100"
           />
@@ -303,7 +226,6 @@ Let's do model input.
             value={formData.fuelType}
             onChange={handleChange}
             className="form-select"
-            disabled={parentLoading}
           >
             <option value="">Any Fuel Type</option>
             <option value="petrol">Petrol</option>
@@ -321,7 +243,6 @@ Let's do model input.
             value={formData.transmission}
             onChange={handleChange}
             className="form-select"
-            disabled={parentLoading}
           >
             <option value="">Any Transmission</option>
             <option value="automatic">Automatic</option>
@@ -337,16 +258,15 @@ Let's do model input.
           type="button"
           className="btn btn-outline"
           onClick={handleClear}
-          disabled={parentLoading}
         >
           Clear
         </button>
         <button 
           type="submit" 
           className="btn btn-primary search-btn"
-          disabled={parentLoading || !formData.make || !formData.model}
+          disabled={!formData.make || !formData.model || loading}
         >
-          {parentLoading ? (
+          {loading ? (
             <>
               <span className="loading-spinner-small"></span>
               Searching...
@@ -357,23 +277,20 @@ Let's do model input.
         </button>
       </div>
 
-      <style>{`
+      <style jsx>{`
         .enhanced-form .required {
           color: #e74c3c;
         }
-        
         .enhanced-form .form-hint {
           color: #7f8c8d;
           font-size: 12px;
           margin-top: 4px;
           display: block;
         }
-        
-        .enhanced-form .autocomplete-wrapper {
+        .autocomplete-wrapper {
           position: relative;
         }
-        
-        .enhanced-form .suggestions-dropdown {
+        .suggestions-dropdown {
           position: absolute;
           top: 100%;
           left: 0;
@@ -389,34 +306,20 @@ Let's do model input.
           padding: 0;
           list-style: none;
         }
-        
-        .enhanced-form .suggestions-dropdown li {
+        .suggestions-dropdown li {
           padding: 10px 14px;
           cursor: pointer;
           border-bottom: 1px solid #f0f0f0;
           transition: background 0.2s;
         }
-        
-        .enhanced-form .suggestions-dropdown li:hover {
+        .suggestions-dropdown li:hover {
           background: #f8f9fa;
-          color: #3498db;
         }
-        
-        .enhanced-form .suggestions-dropdown li:last-child {
-          border-bottom: none;
-        }
-        
-        .enhanced-form .form-actions {
+        .form-actions {
           display: flex;
           gap: 12px;
           margin-top: 20px;
         }
-        
-        .enhanced-form .form-actions .btn {
-          flex: 1;
-          padding: 12px 20px;
-        }
-        
         .loading-spinner-small {
           display: inline-block;
           width: 16px;
@@ -426,22 +329,10 @@ Let's do model input.
           border-radius: 50%;
           animation: spin 1s linear infinite;
           margin-right: 8px;
-          vertical-align: middle;
         }
-        
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
-        }
-        
-        @media (max-width: 768px) {
-          .enhanced-form .form-row {
-            flex-direction: column;
-          }
-          
-          .enhanced-form .form-actions {
-            flex-direction: column;
-          }
         }
       `}</style>
     </form>
