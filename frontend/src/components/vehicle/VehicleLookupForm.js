@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
-const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = [] }) => {
+const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = [], loading: loadingProp = false }) => {
   const [formData, setFormData] = useState({
     make: '',
     model: '',
@@ -13,7 +13,6 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
   const [makes, setMakes] = useState([]);
   const [models, setModels] = useState([]);
   const [modelSuggestions, setModelSuggestions] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [showModelSuggestions, setShowModelSuggestions] = useState(false);
   
   const currentYear = new Date().getFullYear();
@@ -264,9 +263,9 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
         <button 
           type="submit" 
           className="btn btn-primary search-btn"
-          disabled={!formData.make || !formData.model || loading}
+          disabled={!formData.make || !formData.model || loadingProp}
         >
-          {loading ? (
+          {loadingProp ? (
             <>
               <span className="loading-spinner-small"></span>
               Searching...
@@ -340,4 +339,3 @@ const VehicleLookupForm = ({ onSubmit, availableMakes = [], availableModels = []
 };
 
 export default VehicleLookupForm;
-

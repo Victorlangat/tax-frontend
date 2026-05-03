@@ -1,3 +1,4 @@
+// src/pages/Signup.js
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import './Login.css';
@@ -68,7 +69,12 @@ const Signup = ({ onSignup }) => {
       const data = await response.json();
 
       if (data.success) {
-        // Store the token and user data
+        if (data.needsEmailConfirmation) {
+          alert('Registration successful! Please check your email (' + data.email + ') to confirm your account, then login.');
+          navigate('/login');
+          return;
+        }
+        
         localStorage.setItem('smarttax_token', data.token);
         localStorage.setItem('smarttax_user', JSON.stringify(data.user));
         

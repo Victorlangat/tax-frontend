@@ -1,534 +1,483 @@
+// src/pages/VehicleLookup.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import VehicleLookupForm from '../components/vehicle/VehicleLookupForm';
+import { Search, Car, X, AlertCircle, ChevronRight, Calendar, Gauge, Fuel, Settings, Info } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
 
 const VehicleLookup = () => {
   const navigate = useNavigate();
-const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
-  const [allVehicles, setAllVehicles] = useState([]);
-  const [recentSearches, setRecentSearches] = useState([]);
-  const [popularVehicles, setPopularVehicles] = useState([]);
-  // const [availableVehicles, setAvailableVehicles] = useState([]); // unused
+  const [vehicles, setVehicles] = useState([]);
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [searchPerformed, setSearchPerformed] = useState(false);
-  const [crspError, setCrspError] = useState('');
-  const [corollaVariants, setCorollaVariants] = useState([
-    {make: 'Toyota', model: 'Corolla', year: 2020, engineCC: 1800, fuelType: 'petrol', transmission: 'automatic'},
-    {make: 'Toyota', model: 'Corolla', year: 2019, engineCC: 1600, fuelType: 'petrol', transmission: 'manual'},
-  ]);
+  const [makes, setMakes] = useState([]);
+  const [models, setModels] = useState([]);
+  const [allVehiclesCache, setAllVehiclesCache] = useState([]);
   
-  // Dynamic makes and models from CRSP data
-  const [dynamicMakes, setDynamicMakes] = useState([]); 
-  const [modelsByMake, setModelsByMake] = useState({});
+  const [formData, setFormData] = useState({
+    make: '',
+    model: '',
+    year: '',
+    engineCC: '',
+    fuelType: ''
+  });
 
-  // Load recent searches from localStorage
+  // Load all vehicles on mount
   useEffect(() => {
-    const saved = localStorage.getItem('recentVehicleSearches');
-    if (saved) {
-      try {
-        setRecentSearches(JSON.parse(saved).slice(0, 5));
-      } catch (e) {
-        console.error('Error loading recent searches:', e);
-      }
-    }
-    fetchMakesAndModels();
-  // eslint-disable-line react-hooks/exhaustive-deps
+    loadAllVehicles();
   }, []);
 
-  // crspLoading, crspError removed - unused
+  // Load ALL models for selected make from the database (not filtered)
+  useEffect(() => {
+    if (formData.make && allVehiclesCache.length > 0) {
+      // Get ALL unique models for this make from the cache
+      const uniqueModels = [...new Set(
+        allVehiclesCache
+          .filter(v => v.make && v.make.toLowerCase() === formData.make.toLowerCase())
+          .map(v => v.model)
+      )].sort();
+      setModels(uniqueModels);
+    } else {
+      setModels([]);
+    }
+  }, [formData.make, allVehiclesCache]);
 
-  // Fetch makes from dedicated endpoint + retry
-  const fetchMakesAndModels = async (retryCount = 0) => {
-setLoading(true);
-    setCrspError('');
-    setError(''); 
+  const loadAllVehicles = async () => {
     try {
-      // Try dedicated makes endpoint first (fast)
-      let response = await fetch('http://localhost:5000/api/crsp/makes');
-      let data = await response.json();
-      
-      if (data.success && data.makes && data.makes.length > 0) {
-        setDynamicMakes(data.makes);
-        // Fetch models for first make as example
-        if (data.makes.length > 0) {
-          const modelsRes = await fetch(`http://localhost:5000/api/vehicles/suggestions?type=model&make=${encodeURIComponent(data.makes[0])}`);
-          const modelsData = await modelsRes.json();
-          setModelsByMake({ [data.makes[0]]: modelsData.suggestions || [] });
-        }
-        console.log('✅ Loaded', data.count, 'dynamic makes');
-        return;
-      }
+      const { data, error } = await supabase
+        .from('crsp')
+        .select(`
+          id,
+          vehicle_details,
+          retail_price,
+          customs_value,
+          wholesale_price,
+          month,
+          source,
+          is_active
+        `)
+        .eq('is_active', true)
+        .limit(2000);
 
-      // Fallback to full CRSP data
-      response = await fetch('http://localhost:5000/api/crsp/all?limit=200');
-      data = await response.json();
-      if (data.success && data.crspData && data.crspData.length > 0) {
-    // uniqueMap unused
-        const makesSet = new Set();
-        const modelsMap = {};
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const vehicleMap = new Map();
         
-        data.crspData.forEach(crsp => {
-          const make = crsp.vehicleDetails?.make || crsp.vehicle?.make || '';
-          const model = crsp.vehicleDetails?.model || crsp.vehicle?.model || '';
+        data.forEach(crsp => {
+          const v = crsp.vehicle_details;
+          if (!v || !v.make || !v.model) return;
           
-          if (make) makesSet.add(make);
-          if (make && model) {
-            if (!modelsMap[make]) modelsMap[make] = new Set();
-            modelsMap[make].add(model);
+          const key = `${v.make}-${v.model}-${v.year}-${v.engineCC}-${v.fuelType}`;
+          
+          if (!vehicleMap.has(key)) {
+            vehicleMap.set(key, {
+              id: crsp.id,
+              make: v.make,
+              model: v.model,
+              year: v.year,
+              engineCC: v.engineCC,
+              fuelType: v.fuelType || 'petrol',
+              transmission: v.transmission || 'automatic',
+              bodyType: v.bodyType || 'sedan',
+              crsp: {
+                retailPrice: crsp.retail_price,
+                customsValue: crsp.customs_value,
+                wholesalePrice: crsp.wholesale_price,
+                month: crsp.month,
+                source: crsp.source
+              }
+            });
           }
         });
         
-        setDynamicMakes(Array.from(makesSet).sort());
-        const modelsByMakeObj = {};
-        for (const make in modelsMap) {
-          modelsByMakeObj[make] = Array.from(modelsMap[make]).sort();
-        }
-        setModelsByMake(modelsByMakeObj);
-        console.log('✅ Loaded dynamic data from CRSP');
-        return;
+        const vehiclesList = Array.from(vehicleMap.values());
+        setAllVehiclesCache(vehiclesList);
+        
+        // Get ALL unique makes from the database
+        const uniqueMakes = [...new Set(vehiclesList.map(v => v.make))].sort();
+        setMakes(uniqueMakes);
+        
+        console.log(`Loaded ${vehiclesList.length} unique vehicle configurations`);
+        console.log(`Makes available: ${uniqueMakes.length}`);
       }
-
-      // Health check fallback
-      const healthRes = await fetch('http://localhost:5000/api/crsp/health');
-      const healthData = await healthRes.json();
-      if (healthData.success && healthData.totalCRSP === 0) {
-        setError('CRSP database empty. Upload data via CRSP Upload page.');
-      } else {
-        setError('CRSP service unavailable. Using fallback data.');
-      } 
     } catch (err) {
-      console.error('CRSP fetch error:', err);
-      if (retryCount < 3) {
-        console.log(`🔄 Retrying CRSP fetch (${retryCount + 1}/3)...`);
-        setTimeout(() => fetchMakesAndModels(retryCount + 1), 2000);
-        return;
-      }
-      setCrspError('Backend unavailable. Check if server running on port 5000.');
-    } finally {
-setLoading(false);
+      console.error('Error loading vehicles:', err);
+      setError('Failed to load vehicle data. Please refresh the page.');
     }
   };
 
-
-// Load popular vehicles (no hardcoded test data)
-  useEffect(() => {
-    const loadPopularVehicles = async () => {
-      try {
-        // Load backend popular vehicles
-        const response = await fetch('http://localhost:5000/api/vehicles/popular');
-        const data = await response.json();
-        if (data.success && data.vehicles && data.vehicles.length > 0) {
-          setPopularVehicles(data.vehicles);
-        }
-      } catch (err) {
-        console.log('Popular vehicles API unavailable, using hardcoded Corollas');
-      }
-    };
-
-    loadPopularVehicles();
-  }, []);
-
-  // Load on mount + poll every 30s
-  useEffect(() => {
-    const saved = localStorage.getItem('recentVehicleSearches');
-    if (saved) {
-      try {
-        setRecentSearches(JSON.parse(saved).slice(0, 5));
-      } catch (e) {
-        console.error('Error loading recent searches:', e);
-      }
-    }
-    fetchMakesAndModels();
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setError('');
     
-    const interval = setInterval(fetchMakesAndModels, 30000);
-    return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Clear models when make changes
+    if (name === 'make') {
+      setModels([]);
+      setFormData(prev => ({ ...prev, model: '' }));
+    }
+  };
 
-  const handleSearch = async (formData) => {
+  // Search ONLY filters by Make and Model - shows ALL variants
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.make) {
+      setError('Please select a vehicle make');
+      return;
+    }
+    
+    if (!formData.model) {
+      setError('Please select a vehicle model');
+      return;
+    }
+
     setLoading(true);
     setError('');
-    setSelectedVehicle(null);
-    setSuggestions([]); 
     setSearchPerformed(true);
-
-    // Save to recent searches
-    const searchEntry = {
-      make: formData.make,
-      model: formData.model,
-      year: formData.year,
-      timestamp: new Date().toISOString()
-    };
-    const updatedRecent = [searchEntry, ...recentSearches.filter(
-      s => !(s.make === formData.make && s.model === formData.model)
-    )].slice(0, 5);
-    setRecentSearches(updatedRecent);
-    localStorage.setItem('recentVehicleSearches', JSON.stringify(updatedRecent));
+    setSelectedVehicle(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/vehicles/lookup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Vehicle lookup failed');
-      }
-
-      if (data.success && data.vehicles?.length > 0) {
-        setAllVehicles(data.vehicles);
-        if (data.vehicles.length === 1) {
-          setSelectedVehicle(data.vehicles[0]);
-        } else {
-          setError(`Found ${data.vehicles.length} matching variants - select one below:`);
-        }
-        setSuggestions([]);
-      } else if (data.suggestions && data.vehicles && data.vehicles.length > 0) {
-        setSuggestions(data.vehicles);
-        setError(data.message || 'No exact match found. Please select from available vehicles below.');
+      // Filter by make and model ONLY - get ALL variants
+      let results = [...allVehiclesCache];
+      
+      results = results.filter(v => 
+        v.make && v.make.toLowerCase() === formData.make.toLowerCase() &&
+        v.model && v.model.toLowerCase() === formData.model.toLowerCase()
+      );
+      
+      if (results.length > 0) {
+        setVehicles(results);
+        console.log(`Found ${results.length} variants for ${formData.make} ${formData.model}`);
       } else {
-        throw new Error(data.message || 'No vehicle found. Try adjusting your search criteria.');
+        setVehicles([]);
+        setError(`No vehicles found for ${formData.make} ${formData.model}. Please check your selection.`);
       }
     } catch (err) {
-      setError(err.message);
+      console.error('Search error:', err);
+      setError('Failed to search vehicles. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickSelect = (vehicle) => {
-    const searchData = {
-      make: vehicle.make,
-      model: vehicle.model,
-      year: vehicle.year,
-      engineCC: vehicle.engineCC,
-      fuelType: vehicle.fuelType
+  const handleSelectVehicle = (vehicle) => {
+    // Create vehicle for calculation using user's input values
+    const vehicleForCalculation = {
+      ...vehicle,
+      // Use user-provided values for tax calculation
+      year: formData.year ? parseInt(formData.year) : vehicle.year,
+      engineCC: formData.engineCC ? parseInt(formData.engineCC) : vehicle.engineCC,
+      fuelType: formData.fuelType || vehicle.fuelType,
+      // Store original values for reference
+      originalYear: vehicle.year,
+      originalEngineCC: vehicle.engineCC,
+      originalFuelType: vehicle.fuelType
     };
-    handleSearch(searchData);
-  };
-
-  const handleRecentSearchClick = (search) => {
-    const searchData = {
-      make: search.make,
-      model: search.model,
-      year: search.year
-    };
-    handleSearch(searchData);
+    
+    setSelectedVehicle(vehicleForCalculation);
+    setVehicles([]);
+    setError('');
   };
 
   const handleCalculateTax = () => {
-    if (selectedVehicle && selectedVehicle.crsp) {
+    if (selectedVehicle) {
       sessionStorage.setItem('selected_vehicle', JSON.stringify(selectedVehicle));
       navigate('/tax-calculator');
-    } else {
-      setError('Please select a valid vehicle with CRSP data');
     }
   };
 
-  const clearRecentSearches = () => {
-    setRecentSearches([]);
-    localStorage.removeItem('recentVehicleSearches');
+  const resetSearch = () => {
+    setSelectedVehicle(null);
+    setVehicles([]);
+    setSearchPerformed(false);
+    setError('');
+    setFormData({
+      make: '',
+      model: '',
+      year: '',
+      engineCC: '',
+      fuelType: ''
+    });
   };
 
   return (
-    <div className="vehicle-lookup enhanced-lookup">
+    <div className="vehicle-lookup-page">
       <div className="page-header">
-        <h1>🔍 Find Your Vehicle</h1>
-        <p>Search the KRA database to get accurate customs valuation</p>
+        <h1>Find Your Vehicle</h1>
+        <p>Select Make and Model to see all available variants. Year, Engine CC, and Fuel Type will be used for tax calculation.</p>
       </div>
 
-      <div className="lookup-container enhanced-container">
-{/* Search Form */}
-        <div className="search-section">
-          <VehicleLookupForm 
-            onSubmit={handleSearch} 
-            loading={loading}
-            availableMakes={dynamicMakes}
-            availableModels={modelsByMake}
-          />
+      <div className="search-container">
+        {/* Search Form */}
+        <div className="search-card">
+          <form onSubmit={handleSearch} className="search-form">
+            <div className="form-grid">
+              <div className="form-group">
+                <label>
+                  <Car size={16} />
+                  Make *
+                </label>
+                <select
+                  name="make"
+                  value={formData.make}
+                  onChange={handleInputChange}
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Select Make</option>
+                  {makes.map(make => (
+                    <option key={make} value={make}>{make}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <Settings size={16} />
+                  Model *
+                </label>
+                <select
+                  name="model"
+                  value={formData.model}
+                  onChange={handleInputChange}
+                  required
+                  disabled={loading || !formData.make}
+                >
+                  <option value="">Select Model</option>
+                  {models.map(model => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <Calendar size={16} />
+                  Year *
+                </label>
+                <input
+                  type="number"
+                  name="year"
+                  value={formData.year}
+                  onChange={handleInputChange}
+                  placeholder="e.g., 2023"
+                  min="1990"
+                  max={new Date().getFullYear() + 1}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <Gauge size={16} />
+                  Engine CC *
+                </label>
+                <input
+                  type="number"
+                  name="engineCC"
+                  value={formData.engineCC}
+                  onChange={handleInputChange}
+                  placeholder="e.g., 1500"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  <Fuel size={16} />
+                  Fuel Type *
+                </label>
+                <select
+                  name="fuelType"
+                  value={formData.fuelType}
+                  onChange={handleInputChange}
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Select Fuel Type</option>
+                  <option value="petrol">Petrol</option>
+                  <option value="diesel">Diesel</option>
+                  <option value="hybrid">Hybrid</option>
+                  <option value="electric">Electric</option>
+                </select>
+              </div>
+
+              <div className="form-group search-button">
+                <button type="submit" className="btn-search" disabled={loading}>
+                  {loading ? (
+                    <div className="spinner-small"></div>
+                  ) : (
+                    <>
+                      <Search size={18} />
+                      Search Vehicle
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        {/* Note about search */}
+        <div className="search-note">
+          <Info size={14} />
+          <span>Search shows ALL variants for your selected Make and Model. Your Year, Engine CC, and Fuel Type will be used for tax calculation.</span>
         </div>
 
         {/* Error Message */}
-        {error && !allVehicles.length && (
-          <div className="error-card animate-fade-in">
-            <div className="error-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc3545" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="15" y1="9" x2="9" y2="15"></line>
-                <line x1="9" y1="9" x2="15" y2="15"></line>
-              </svg>
-            </div>
-            <p>{error}</p>
+        {error && (
+          <div className="error-card">
+            <AlertCircle size={20} />
+            <span>{error}</span>
+            <button onClick={resetSearch} className="btn-link">Clear Search</button>
           </div>
         )}
 
-        {/* Recent Searches */}
-        {!searchPerformed && recentSearches.length > 0 && (
-          <div className="recent-section">
-            <div className="section-header">
-              <h3>📜 Recent Searches</h3>
-              <button className="clear-btn" onClick={clearRecentSearches}>Clear All</button>
+        {/* Search Results - Show ALL variants */}
+        {vehicles.length > 0 && !selectedVehicle && (
+          <div className="results-section">
+            <div className="results-header">
+              <h3>Found {vehicles.length} Variant{vehicles.length !== 1 ? 's' : ''} of {formData.make} {formData.model}</h3>
+              <button onClick={resetSearch} className="btn-outline-small">
+                <X size={16} />
+                Clear
+              </button>
             </div>
-            <div className="recent-grid">
-              {recentSearches.map((search, index) => (
-                <div 
-                  key={index} 
-                  className="recent-card"
-                  onClick={() => handleRecentSearchClick(search)}
-                >
-                  <span className="recent-make">{search.make} {search.model}</span>
-                  <span className="recent-year">{search.year}</span>
-                </div>
-              ))}
+            <div className="results-note">
+              <span>Your tax calculation values: Year {formData.year || '?'}, Engine {formData.engineCC || '?'}cc, Fuel {formData.fuelType || '?'}</span>
             </div>
-          </div>
-        )}
-
-        {/* Suggestions from API */}
-        {suggestions.length > 0 && (
-          <div className="suggestions-section animate-fade-in">
-            <h3>🚗 Available Vehicles with CRSP Data</h3>
-            <p>Select a vehicle from the list:</p>
-            <div className="suggestions-grid">
-              {suggestions.map((vehicle, index) => (
-                <div 
-                  key={index} 
-                  className="suggestion-card"
-                  onClick={() => {
-                    setSelectedVehicle(vehicle);
-                    setSuggestions([]);
-                    setError('');
-                  }}
-                >
-                  <div className="card-main">
-                    <strong>{vehicle.make} {vehicle.model}</strong>
-                    <span className="year-tag">{vehicle.year}</span>
+            <div className="results-grid">
+              {vehicles.map((vehicle, index) => (
+                <div key={index} className="vehicle-card" onClick={() => handleSelectVehicle(vehicle)}>
+                  <div className="vehicle-card-header">
+                    <div className="vehicle-title">
+                      <Car size={20} />
+                      <strong>{vehicle.make} {vehicle.model}</strong>
+                    </div>
+                    <span className="year-badge">Year: {vehicle.year}</span>
                   </div>
-                  <div className="card-details">
-                    <span>{vehicle.engineCC}cc</span>
-                    <span className="fuel-tag">{vehicle.fuelType}</span>
-                    {vehicle.transmission && <span className="trans-tag">{vehicle.transmission}</span>}
+                  <div className="vehicle-specs">
+                    <span>Engine: {vehicle.engineCC}cc</span>
+                    <span className={`fuel-badge ${vehicle.fuelType?.toLowerCase() || 'petrol'}`}>
+                      Fuel: {vehicle.fuelType || 'Petrol'}
+                    </span>
+                    <span>Trans: {vehicle.transmission || 'N/A'}</span>
                   </div>
-                  <div className="card-price">
-                    <span>CRSP Retail: KES {(vehicle.crsp?.retailPrice || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Popular Vehicles + Corolla Section */}
-        {!searchPerformed && (
-          <div className="popular-section">
-            <div className="section-header">
-              <h3>⭐ Popular Vehicles</h3>
-
-            </div>
-            <div className="popular-grid">
-            {/* Backend popular first */}
-              {popularVehicles.map((vehicle, index) => (
-                <div 
-                  key={`popular-${index}`} 
-                  className="popular-card"
-                  onClick={() => handleQuickSelect(vehicle)}
-                >
-                  <div className="card-main">
-                    <strong>{vehicle.make} {vehicle.model}</strong>
-                    <span className="year-tag">{vehicle.year}</span>
-                  </div>
-                  <div className="card-details">
-                    <span>{vehicle.engineCC}cc</span>
-                    <span className="fuel-tag">{vehicle.fuelType}</span>
-                  </div>
-                  {vehicle.crsp?.retailPrice && (
-                    <div className="card-price">
-                      KES {vehicle.crsp.retailPrice.toLocaleString()}
+                  {vehicle.crsp && (
+                    <div className="vehicle-price">
+                      CRSP Value: KES {vehicle.crsp.retailPrice?.toLocaleString()}
                     </div>
                   )}
-                </div>
-              ))}
-              {/* Corolla variants */}
-              {corollaVariants.map((corolla, cIndex) => (
-                <div 
-                  key={`corolla-${cIndex}`} 
-                  className="popular-card corolla-highlight"
-                  title="Hardcoded fallback - click to search"
-                  onClick={() => handleQuickSelect(corolla)}
-                >
-                  <div className="card-main">
-                    <strong>{corolla.make} {corolla.model}</strong>
-                    <span className="year-tag">{corolla.year}</span>
+                  <div className="user-inputs-note">
+                    <span>Your values: {formData.year} · {formData.engineCC}cc · {formData.fuelType}</span>
                   </div>
-                  <div className="card-details">
-                    <span>{corolla.engineCC}cc</span>
-                    <span className="fuel-tag">{corolla.fuelType}</span>
-                  </div>
-                  <div className="card-footer">
-                    <small>Popular Variant</small>
-                  </div>
-                </div>
-              ))}
-              {corollaVariants.length > 0 && (
-                <div className="popular-card all-corollas-btn">
-                  <button 
-                    className="load-all-btn"
-                    onClick={() => {
-                      setAllVehicles(corollaVariants);
-                      setError(`Found ${corollaVariants.length} Toyota Corolla variants - select one below:`);
-                      setSearchPerformed(true);
-                    }}
-                  >
-                    📋 Load ALL {corollaVariants.length} Corolla Variants
+                  <button className="select-btn">
+                    Select This Variant →
                   </button>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Variants Section - Show ALL results */}
-        {allVehicles.length > 0 && !selectedVehicle && (
-          <div className="variants-section animate-fade-in">
-            <div className="section-header">
-              <h3>🎯 Found {allVehicles.length} Variants</h3>
-              <div className="section-actions">
-                <button 
-                  className="btn btn-outline clear-results"
-                  onClick={() => {
-                    setAllVehicles([]);
-                    setSearchPerformed(false);
-                    setError('');
-                  }}
-                >
-                  🔄 New Search
-                </button>
-              </div>
-            </div>
-            <p>Click to select your exact vehicle (showing <strong>ALL</strong> matches):</p>
-            <div className="variants-grid">
-              {allVehicles.slice(0, 100).map((vehicle, index) => (
-                <div 
-                  key={index} 
-                  className="variant-card"
-                  onClick={() => setSelectedVehicle(vehicle)}
-                >
-                  <div className="card-main">
-                    <strong>{vehicle.make} {vehicle.model}</strong>
-                    <span className="year-tag">{vehicle.year}</span>
-                  </div>
-                  <div className="card-details">
-                    <span>{vehicle.engineCC}cc</span>
-                    <span className="fuel-tag">{vehicle.fuelType}</span>
-                    {vehicle.transmission && <span className="trans-tag">{vehicle.transmission}</span>}
-                    {vehicle.bodyType && <span className="body-tag">{vehicle.bodyType}</span>}
-                  </div>
-                  <div className="match-score">
-                    Match: <strong>{vehicle.matchScore}%</strong>
-                  </div>
-                  <div className="card-price">
-                    CRSP Retail: KES {(vehicle.crsp?.retailPrice || 0).toLocaleString()}
-                  </div>
-                  <button className="select-btn">Select →</button>
-                </div>
               ))}
-              {allVehicles.length > 100 && (
-                <div className="load-more-info">
-                  <p>🛑 Showing first 100 of {allVehicles.length} results for performance. 
-                     All data available in backend.</p>
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* Results */}
-        {selectedVehicle && !loading && (
-          <div className="results-section animate-fade-in">
-            <div className="success-card">
-              <div className="success-header">
-                <div className="success-icon">✅</div>
-                <div>
-                  <h3>Vehicle Selected!</h3>
-                  <p>{selectedVehicle.make} {selectedVehicle.model} ({selectedVehicle.year})</p>
+        {/* Selected Vehicle Details */}
+        {selectedVehicle && (
+          <div className="selected-vehicle-section">
+            <div className="selected-vehicle-card">
+              <div className="selected-header">
+                <div className="selected-icon">
+                  <Car size={32} />
                 </div>
-              </div>
-
-              <div className="vehicle-specs">
-                <div className="spec-item">
-                  <span className="spec-label">Engine</span>
-                  <span className="spec-value">{selectedVehicle.engineCC}cc</span>
+                <div className="selected-info">
+                  <h2>{selectedVehicle.make} {selectedVehicle.model}</h2>
+                  <p>Selected Variant: {selectedVehicle.originalYear || selectedVehicle.year} · {selectedVehicle.originalEngineCC || selectedVehicle.engineCC}cc · {selectedVehicle.originalFuelType || selectedVehicle.fuelType}</p>
                 </div>
-                <div className="spec-item">
-                  <span className="spec-label">Fuel</span>
-                  <span className="spec-value">{selectedVehicle.fuelType}</span>
-                </div>
-{selectedVehicle.transmission && (
-                  <div className="spec-item">
-                    <span className="spec-label">Transmission</span>
-                    <span className="spec-value">{selectedVehicle.transmission}</span>
-                  </div>
-                )}
-{selectedVehicle.bodyType && (
-                  <div className="spec-item">
-                    <span className="spec-label">Body</span>
-                    <span className="spec-value">{selectedVehicle.bodyType}</span>
-                  </div>
-                )}
-                <div className="spec-item">
-                  <span className="spec-label">Age</span>
-                <span className="spec-value">{new Date().getFullYear() - selectedVehicle.year} years</span>
-                </div>
-              </div>
-
-              <div className="vehicle-details">
-                <div className="detail-row highlight">
-                  <span>CRSP Value:</span>
-                  <strong>KES {(selectedVehicle.crsp?.retailPrice || 0).toLocaleString()}</strong>
-                </div>
-                <div className="detail-row">
-                  <span>Customs Value:</span>
-                  <strong>KES {(selectedVehicle.crsp?.customsValue || 0).toLocaleString()}</strong>
-                </div>
-                <div className="detail-row">
-                  <span>Wholesale Value:</span>
-                  <strong>KES {(selectedVehicle.crsp?.wholesalePrice || 0).toLocaleString()}</strong>
-                </div>
-                <div className="detail-row">
-                  <span>CRSP Month:</span>
-                  <strong>{selectedVehicle.crsp?.month || 'N/A'}</strong>
-                </div>
-{selectedVehicle.matchScore && (
-                  <div className="detail-row">
-                    <span>Match Score:</span>
-                    <strong className="match-badge">{selectedVehicle.matchScore}%</strong>
-                  </div>
-                )}
-              </div>
-
-              <div className="action-buttons">
-                <button
-                  className="btn btn-outline"
-                  onClick={() => {
-                    setSelectedVehicle(null);
-                    setSearchPerformed(false);
-                    setError('');
-                  }}
-                >
-                  🔄 Search Again
+                <button onClick={resetSearch} className="btn-outline-small">
+                  <X size={16} />
+                  Change
                 </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleCalculateTax}
-                >
-                  💰 Calculate Tax →
-                </button>
+              </div>
+
+              <div className="selected-details">
+                <div className="comparison-section">
+                  <h4>Tax Calculation Values</h4>
+                  <div className="comparison-grid">
+                    <div className="comparison-item">
+                      <span className="comparison-label">Parameter</span>
+                      <span className="comparison-label">Your Input</span>
+                      <span className="comparison-label">Vehicle Data</span>
+                    </div>
+                    <div className="comparison-item">
+                      <span className="comparison-label">Year</span>
+                      <span className="comparison-value user">{selectedVehicle.year}</span>
+                      <span className="comparison-value stored">{selectedVehicle.originalYear || selectedVehicle.year}</span>
+                    </div>
+                    <div className="comparison-item">
+                      <span className="comparison-label">Engine CC</span>
+                      <span className="comparison-value user">{selectedVehicle.engineCC}</span>
+                      <span className="comparison-value stored">{selectedVehicle.originalEngineCC || selectedVehicle.engineCC}</span>
+                    </div>
+                    <div className="comparison-item">
+                      <span className="comparison-label">Fuel Type</span>
+                      <span className="comparison-value user">{selectedVehicle.fuelType}</span>
+                      <span className="comparison-value stored">{selectedVehicle.originalFuelType || selectedVehicle.fuelType}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="details-grid">
+                  <div className="detail-item">
+                    <span className="detail-label">Transmission</span>
+                    <span className="detail-value">{selectedVehicle.transmission || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Body Type</span>
+                    <span className="detail-value">{selectedVehicle.bodyType || 'N/A'}</span>
+                  </div>
+                  <div className="detail-item">
+                    <span className="detail-label">Age for Calculation</span>
+                    <span className="detail-value">{new Date().getFullYear() - selectedVehicle.year} years</span>
+                  </div>
+                </div>
+
+                {selectedVehicle.crsp && (
+                  <div className="pricing-section">
+                    <div className="price-row highlight">
+                      <span>CRSP Retail Price (Base)</span>
+                      <strong>KES {selectedVehicle.crsp.retailPrice?.toLocaleString()}</strong>
+                    </div>
+                    <div className="price-row">
+                      <span>Customs Value (Reference)</span>
+                      <strong>KES {selectedVehicle.crsp.customsValue?.toLocaleString()}</strong>
+                    </div>
+                    <div className="price-row">
+                      <span>CRSP Month</span>
+                      <strong>{selectedVehicle.crsp.month || 'N/A'}</strong>
+                    </div>
+                  </div>
+                )}
+
+                <div className="info-note warning">
+                  <span className="note-icon">⚠️</span>
+                  <span className="note-text">
+                    Tax calculation will use YOUR values: Year {selectedVehicle.year}, Engine {selectedVehicle.engineCC}cc, Fuel {selectedVehicle.fuelType}
+                  </span>
+                </div>
+
+                <div className="action-buttons">
+                  <button onClick={resetSearch} className="btn-outline">
+                    Search Again
+                  </button>
+                  <button onClick={handleCalculateTax} className="btn-primary">
+                    Calculate Tax
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -537,492 +486,537 @@ setLoading(false);
         {/* Loading State */}
         {loading && (
           <div className="loading-card">
-            <div className="loading-spinner"></div>
-            <p>Searching KRA database...</p>
-            <small>This may take a moment</small>
+            <div className="spinner"></div>
+            <p>Searching database...</p>
           </div>
         )}
 
-        {/* No Results */}
-{searchPerformed && !loading && !selectedVehicle && suggestions.length === 0 && !allVehicles.length && error && (
+        {/* No Results State */}
+        {searchPerformed && !loading && vehicles.length === 0 && !error && (
           <div className="no-results-card">
             <div className="no-results-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6c757d" strokeWidth="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-              </svg>
+              <Car size={48} />
             </div>
-            <h3>No Vehicles Found</h3>
-            <p>We couldn't find a vehicle matching your criteria.</p>
-            <div className="suggestion-tips">
-              <p>Try these options:</p>
-              <ul>
-                <li>Check if CRSP data has been loaded from My CRSP page</li>
-                <li>Try searching with just Make and Model (leave year blank)</li>
-                <li>Click Popular Vehicles section for quick access</li>
-              </ul>
-            </div>
-            <button
-                  className="btn btn-outline"
-                  onClick={() => {
-                    setSelectedVehicle(null);
-                    setAllVehicles([]);
-                    setSearchPerformed(false);
-                    setError('');
-                  }}
-                >
-              Try Again
-            </button>
+            <h3>No Variants Found</h3>
+            <p>No variants found for {formData.make} {formData.model}. Please try a different model.</p>
+            <button onClick={resetSearch} className="btn-primary">Clear Search</button>
           </div>
         )}
       </div>
 
       <style>{`
-        .enhanced-lookup .page-header {
-          text-align: center;
-          padding: 30px 20px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border-radius: 0;
-          margin-bottom: 30px;
-        }
-        
-        .enhanced-lookup .page-header h1 {
-          margin: 0 0 10px;
-          font-size: 2rem;
-        }
-        
-        .enhanced-lookup .page-header p {
-          margin: 0;
-          opacity: 0.9;
-          font-size: 1.1rem;
-        }
-        
-        .enhanced-container {
+        .vehicle-lookup-page {
           max-width: 1200px;
           margin: 0 auto;
-          padding: 0 20px 40px;
+          padding: 20px;
         }
-        
-        .enhanced-lookup .section-header {
+
+        .page-header {
+          text-align: center;
+          margin-bottom: 32px;
+        }
+
+        .page-header h1 {
+          font-size: 32px;
+          font-weight: 700;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background-clip: text;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          margin-bottom: 8px;
+        }
+
+        .page-header p {
+          color: #6b7280;
+          font-size: 14px;
+        }
+
+        .search-card {
+          background: white;
+          border-radius: 20px;
+          padding: 24px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+          margin-bottom: 16px;
+        }
+
+        .form-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          align-items: end;
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .form-group label {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          color: #4b5563;
+        }
+
+        .form-group select,
+        .form-group input {
+          padding: 10px 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          font-size: 14px;
+          transition: all 0.2s ease;
+          background: white;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+          outline: none;
+          border-color: #667eea;
+          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-button {
+          display: flex;
+        }
+
+        .btn-search {
+          width: 100%;
+          padding: 10px 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+
+        .btn-search:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-search:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
+        .search-note {
+          background: #e0f2fe;
+          border: 1px solid #bae6fd;
+          border-radius: 10px;
+          padding: 10px 16px;
+          margin-bottom: 24px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          color: #0369a1;
+        }
+
+        .results-note {
+          background: #fef3c7;
+          border: 1px solid #fde68a;
+          border-radius: 10px;
+          padding: 10px 16px;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          color: #92400e;
+        }
+
+        .error-card {
+          background: #fee2e2;
+          border: 1px solid #fecaca;
+          border-radius: 12px;
+          padding: 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          color: #dc2626;
+          margin-bottom: 24px;
+        }
+
+        .btn-link {
+          background: none;
+          border: none;
+          color: #dc2626;
+          cursor: pointer;
+          margin-left: auto;
+          text-decoration: underline;
+        }
+
+        .results-section {
+          margin-bottom: 24px;
+        }
+
+        .results-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 15px;
+          margin-bottom: 16px;
         }
-        
-        .enhanced-lookup .section-header h3 {
-          margin: 0;
-          color: #2c3e50;
-        }
-        
-        .clear-btn {
-          background: none;
-          border: none;
-          color: #e74c3c;
-          cursor: pointer;
-          font-size: 0.9rem;
-        }
-        
-        .clear-btn:hover {
-          text-decoration: underline;
-        }
-        
-        /* Recent Section */
-        .recent-section {
-          margin: 25px 0;
-        }
-        
-        .recent-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        
-        .recent-card {
-          background: #f8f9fa;
-          border: 1px solid #e9ecef;
-          border-radius: 8px;
-          padding: 10px 15px;
-          cursor: pointer;
-          display: flex;
-          flex-direction: column;
-          transition: all 0.2s;
-        }
-        
-        .recent-card:hover {
-          background: #e9ecef;
-          transform: translateY(-2px);
-        }
-        
-        .recent-make {
-          font-weight: 600;
-          color: #2c3e50;
-        }
-        
-        .recent-year {
-          font-size: 0.85rem;
-          color: #7f8c8d;
-        }
-        
-        /* Popular Section */
-        .popular-section, .suggestions-section {
-          margin: 30px 0;
-        }
-        
-        .popular-section h3, .suggestions-section h3 {
-          color: #2c3e50;
-          margin-bottom: 15px;
-        }
-        
-        .popular-grid, .suggestions-grid, .variants-grid {
+
+        .results-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
           gap: 20px;
         }
 
-        .variant-card {
+        .vehicle-card {
           background: white;
-          border: 2px solid #667eea;
           border-radius: 16px;
           padding: 20px;
           cursor: pointer;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+          transition: all 0.2s ease;
+          border: 1px solid #e2e8f0;
         }
 
-        .variant-card:hover {
-          transform: translateY(-6px);
-          box-shadow: 0 12px 30px rgba(102, 126, 234, 0.3);
-          border-color: #5a67d8;
+        .vehicle-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+          border-color: #667eea;
         }
 
-        .match-score {
-          margin: 10px 0;
+        .vehicle-card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+
+        .vehicle-title {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 16px;
+        }
+
+        .year-badge {
+          background: #e2e8f0;
+          padding: 4px 8px;
+          border-radius: 8px;
+          font-size: 12px;
+        }
+
+        .vehicle-specs {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 12px;
+          font-size: 13px;
+          color: #6b7280;
+          flex-wrap: wrap;
+        }
+
+        .fuel-badge {
+          padding: 2px 8px;
+          border-radius: 6px;
+        }
+
+        .fuel-badge.petrol { background: #dbeafe; color: #1e40af; }
+        .fuel-badge.diesel { background: #fef3c7; color: #92400e; }
+        .fuel-badge.hybrid { background: #dcfce7; color: #166534; }
+        .fuel-badge.electric { background: #e0e7ff; color: #3730a3; }
+
+        .vehicle-price {
           font-weight: 600;
-          color: #2c3e50;
+          color: #10b981;
+          margin-bottom: 8px;
+          font-size: 14px;
         }
 
-        .match-score strong {
-          color: #48bb78;
-          font-size: 1.1rem;
+        .user-inputs-note {
+          font-size: 11px;
+          color: #667eea;
+          background: #eef2ff;
+          padding: 4px 8px;
+          border-radius: 6px;
+          margin: 8px 0;
+          text-align: center;
         }
 
         .select-btn {
           width: 100%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border: none;
-          padding: 10px;
-          border-radius: 8px;
-          font-weight: 600;
           margin-top: 12px;
+          padding: 10px;
+          background: #f3f4f6;
+          border: none;
+          border-radius: 8px;
           cursor: pointer;
-          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+          font-weight: 500;
         }
 
         .select-btn:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        
-        .popular-card, .suggestion-card {
-          background: white;
-          border: 1px solid #e9ecef;
-          border-radius: 12px;
-          padding: 15px;
-          cursor: pointer;
-          transition: all 0.3s;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        
-        .popular-card:hover, .suggestion-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-          border-color: #667eea;
-        }
-        
-        .card-main {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 10px;
-        }
-        
-        .card-main strong {
-          color: #2c3e50;
-          font-size: 1rem;
-        }
-        
-        .year-tag {
           background: #667eea;
           color: white;
-          padding: 2px 8px;
-          border-radius: 12px;
-          font-size: 0.8rem;
         }
-        
-        .card-details {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-bottom: 8px;
-        }
-        
-        .card-details span {
-          font-size: 0.85rem;
-          color: #7f8c8d;
-        }
-        
-        .fuel-tag {
-          background: #e8f5e9;
-          color: #2e7d32;
-          padding: 2px 8px;
-          border-radius: 4px;
-          font-size: 0.8rem !important;
-        }
-        
-        .trans-tag {
-          background: #fff3e0;
-          color: #e65100;
-          padding: 2px 8px;
-          border-radius: 4px;
-          font-size: 0.8rem !important;
-        }
-        
-        .card-price {
-          font-weight: 600;
-          color: #27ae60;
-          font-size: 0.95rem;
-          padding-top: 8px;
-          border-top: 1px solid #f0f0f0;
-        }
-        
-        /* Results Section */
-        .success-card {
+
+        .selected-vehicle-card {
           background: white;
-          border-radius: 16px;
-          padding: 25px;
-          box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-          margin-top: 20px;
+          border-radius: 20px;
+          padding: 24px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
-        
-        .success-header {
+
+        .selected-header {
           display: flex;
           align-items: center;
-          gap: 15px;
-          margin-bottom: 20px;
+          gap: 20px;
           padding-bottom: 20px;
-          border-bottom: 2px solid #f0f0f0;
-        }
-        
-        .success-icon {
-          font-size: 2.5rem;
-        }
-        
-        .success-header h3 {
-          margin: 0 0 5px;
-          color: #27ae60;
-        }
-        
-        .success-header p {
-          margin: 0;
-          color: #7f8c8d;
-          font-size: 1.1rem;
-        }
-        
-        .vehicle-specs {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-          gap: 15px;
+          border-bottom: 1px solid #e2e8f0;
           margin-bottom: 20px;
-          padding: 15px;
-          background: #f8f9fa;
-          border-radius: 10px;
         }
-        
-        .spec-item {
-          text-align: center;
+
+        .selected-icon {
+          width: 64px;
+          height: 64px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
         }
-        
-        .spec-label {
-          display: block;
-          font-size: 0.8rem;
-          color: #7f8c8d;
+
+        .selected-info {
+          flex: 1;
+        }
+
+        .selected-info h2 {
           margin-bottom: 4px;
         }
-        
-        .spec-value {
-          font-weight: 600;
-          color: #2c3e50;
-          font-size: 0.95rem;
+
+        .selected-info p {
+          font-size: 13px;
+          color: #6b7280;
         }
-        
-        .vehicle-details {
+
+        .comparison-section {
+          margin-bottom: 20px;
+          padding: 16px;
+          background: #f9fafb;
+          border-radius: 12px;
+        }
+
+        .comparison-section h4 {
+          margin-top: 0;
+          margin-bottom: 12px;
+          font-size: 14px;
+          color: #374151;
+        }
+
+        .comparison-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .comparison-item {
+          display: grid;
+          grid-template-columns: 100px 1fr 1fr;
+          gap: 10px;
+          font-size: 13px;
+          padding: 8px;
+          background: white;
+          border-radius: 8px;
+        }
+
+        .comparison-label {
+          font-weight: 600;
+          color: #6b7280;
+        }
+
+        .comparison-value.user {
+          color: #059669;
+          font-weight: 500;
+        }
+
+        .comparison-value.stored {
+          color: #6b7280;
+        }
+
+        .details-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 16px;
           margin-bottom: 20px;
         }
-        
-        .detail-row {
+
+        .detail-item {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .detail-label {
+          font-size: 12px;
+          color: #6b7280;
+        }
+
+        .detail-value {
+          font-weight: 600;
+        }
+
+        .pricing-section {
+          background: #f9fafb;
+          border-radius: 12px;
+          padding: 16px;
+          margin-bottom: 20px;
+        }
+
+        .price-row {
           display: flex;
           justify-content: space-between;
-          padding: 12px 0;
-          border-bottom: 1px solid #f0f0f0;
+          padding: 8px 0;
         }
-        
-        .detail-row:last-child {
-          border-bottom: none;
-        }
-        
-        .detail-row.highlight {
+
+        .price-row.highlight {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           color: white;
-          padding: 15px;
+          padding: 12px;
           border-radius: 8px;
-          margin: 10px 0;
+          margin: -8px -8px 8px -8px;
         }
-        
-        .detail-row.highlight span {
-          color: rgba(255,255,255,0.9);
+
+        .info-note {
+          background: #e0f2fe;
+          border: 1px solid #bae6fd;
+          border-radius: 12px;
+          padding: 12px 16px;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 13px;
+          color: #0369a1;
         }
-        
-        .detail-row.highlight strong {
-          font-size: 1.2rem;
+
+        .info-note.warning {
+          background: #fef3c7;
+          border-color: #fde68a;
+          color: #92400e;
         }
-        
-        .match-badge {
-          background: #27ae60;
-          color: white;
-          padding: 4px 12px;
-          border-radius: 20px;
-        }
-        
+
         .action-buttons {
           display: flex;
-          gap: 15px;
-          justify-content: center;
+          gap: 16px;
+          justify-content: flex-end;
         }
-        
-        .action-buttons .btn {
-          padding: 12px 30px;
-          font-size: 1rem;
-        }
-        
-        /* Loading State */
-        .loading-card {
-          text-align: center;
-          padding: 50px;
-        }
-        
-        .loading-spinner {
-          width: 50px;
-          height: 50px;
-          border: 4px solid #f3f3f3;
-          border-top: 4px solid #667eea;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin: 0 auto 20px;
-        }
-        
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        
-        .loading-card p {
-          font-size: 1.1rem;
-          color: #2c3e50;
-          margin: 0 0 5px;
-        }
-        
-        .loading-card small {
-          color: #7f8c8d;
-        }
-        
-        /* Error State */
-        .error-card {
-          background: #fee;
-          border: 1px solid #fcc;
+
+        .btn-outline {
+          padding: 10px 20px;
+          background: transparent;
+          border: 1px solid #e2e8f0;
           border-radius: 10px;
-          padding: 15px 20px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-outline:hover {
+          background: #f3f4f6;
+        }
+
+        .btn-primary {
+          padding: 10px 24px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
           display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          margin: 20px 0;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.2s ease;
         }
-        
-        .error-icon {
-          font-size: 1.5rem;
+
+        .btn-primary:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
-        
-        .error-card p {
-          margin: 0;
-          color: #c0392b;
+
+        .btn-outline-small {
+          padding: 6px 12px;
+          background: transparent;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 14px;
         }
-        
-        /* No Results */
+
         .no-results-card {
           text-align: center;
-          padding: 40px;
-          background: #f8f9fa;
-          border-radius: 16px;
-          margin-top: 20px;
-        }
-        
-        .no-results-icon {
-          font-size: 3rem;
-          margin-bottom: 15px;
-        }
-        
-        .no-results-card h3 {
-          color: #2c3e50;
-          margin: 0 0 10px;
-        }
-        
-        .no-results-card > p {
-          color: #7f8c8d;
-          margin: 0 0 20px;
-        }
-        
-        .suggestion-tips {
+          padding: 60px 20px;
           background: white;
-          padding: 20px;
-          border-radius: 10px;
+          border-radius: 20px;
+        }
+
+        .no-results-icon {
           margin-bottom: 20px;
-          text-align: left;
+          color: #9ca3af;
         }
-        
-        .suggestion-tips p {
-          font-weight: 600;
-          margin: 0 0 10px;
+
+        .loading-card {
+          text-align: center;
+          padding: 60px 20px;
         }
-        
-        .suggestion-tips ul {
-          margin: 0;
-          padding-left: 20px;
+
+        .spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #667eea;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 16px;
         }
-        
-        .suggestion-tips li {
-          color: #7f8c8d;
-          margin-bottom: 5px;
+
+        .spinner-small {
+          width: 20px;
+          height: 20px;
+          border: 2px solid white;
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
         }
-        
-        /* Animations */
-        .animate-fade-in {
-          animation: fadeIn 0.3s ease-in;
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        
+
         @media (max-width: 768px) {
+          .form-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .selected-header {
+            flex-wrap: wrap;
+          }
+          
           .action-buttons {
             flex-direction: column;
           }
           
-          .popular-grid, .suggestions-grid {
+          .comparison-item {
             grid-template-columns: 1fr;
+            gap: 4px;
           }
         }
       `}</style>
@@ -1031,4 +1025,3 @@ setLoading(false);
 };
 
 export default VehicleLookup;
-

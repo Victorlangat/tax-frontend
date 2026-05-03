@@ -1,93 +1,57 @@
+// src/App.js - WITH GLOBAL NAVBAR
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Navbar from './components/common/Navbar';
 import Dashboard from './pages/Dashboard';
 import VehicleLookup from './pages/VehicleLookup';
 import TaxCalculator from './pages/TaxCalculator';
 import MyCRSP from './pages/MyCRSP';
-import Sidebar from './components/common/Sidebar';
-import './styles/main.css';
-import './styles/components/icons.css';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('smarttax_token');
-    const userData = localStorage.getItem('smarttax_user');
-    
-    if (token && userData) {
-      if (token.includes('.') && token.split('.').length === 3) {
-        setIsAuthenticated(true);
-        setUser(JSON.parse(userData));
-      } else {
-        localStorage.removeItem('smarttax_token');
-        localStorage.removeItem('smarttax_user');
+    const savedUser = localStorage.getItem('smarttax_user');
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parsing user:', e);
       }
     }
-    setLoading(false);
   }, []);
 
-  const handleLogin = (loginResponse) => {
-    if (loginResponse.token) {
-      localStorage.setItem('smarttax_token', loginResponse.token);
-    }
-    if (loginResponse.user) {
-      localStorage.setItem('smarttax_user', JSON.stringify(loginResponse.user));
-      setUser(loginResponse.user);
-    }
-    setIsAuthenticated(true);
+  const handleLogin = (userData) => {
+    setUser(userData.user);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('smarttax_token');
-    localStorage.removeItem('smarttax_user');
-    setIsAuthenticated(false);
     setUser(null);
   };
 
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner"></div>
-        <p>Loading SmartTax...</p>
-      </div>
-    );
-  }
-
   return (
-    <Router>
-      <div className="App">
-        {isAuthenticated ? (
-          <div className="app-layout">
-            <div className="sidebar-container">
-              <Sidebar user={user} onLogout={handleLogout} />
-            </div>
-            <div className="main-content">
-              <Routes>
-                <Route path="/dashboard" element={<Dashboard user={user} />} />
-                <Route path="/vehicle-lookup" element={<VehicleLookup />} />
-                <Route path="/tax-calculator" element={<TaxCalculator />} />
-                <Route path="/my-crsp" element={<MyCRSP user={user} />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
-            </div>
-          </div>
-        ) : (
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login onLogin={handleLogin} />} />
-            <Route path="/signup" element={<Signup onSignup={handleLogin} />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        )}
-      </div>
-    </Router>
+    <BrowserRouter>
+      {/* Navbar appears on every page automatically */}
+      <Navbar user={user} onLogout={handleLogout} />
+      
+      <Routes>
+        <Route path="/login" element={<Login onLogin={handleLogin} />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard user={user} />} />
+        <Route path="/vehicle-lookup" element={<VehicleLookup />} />
+        <Route path="/tax-calculator" element={<TaxCalculator />} />
+        <Route path="/my-crsp" element={<MyCRSP user={user} />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
 export default App;
-

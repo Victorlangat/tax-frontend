@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Header from '../components/common/Header';
-import Sidebar from '../components/common/Sidebar';
+import Navbar from '../components/common/Navbar';
 import Footer from '../components/common/Footer';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Modal from '../components/common/Modal';
-import { 
-  getAllCRSP, 
-  saveCRSPData, 
-  deleteCRSP,
-  loadSampleCRSP 
-} from '../services/crspService';
+import crspService from '../services/crspService';
 import '../styles/pages/admin.css';
 
 const AdminCRSP = () => {
@@ -26,7 +21,6 @@ const AdminCRSP = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   
   // Form state
@@ -41,10 +35,6 @@ const AdminCRSP = () => {
     bodyType: 'sedan',
     trim: ''
   });
-
-  // Bulk import state
-  const [bulkData, setBulkData] = useState('');
-  const [importing, setImporting] = useState(false);
 
   // Load CRSP data on mount
   useEffect(() => {
@@ -75,14 +65,16 @@ const AdminCRSP = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await getAllCRSP(1000);
+      const response = await crspService.getAllCRSP(1000);
       if (response.success) {
         setCrspData(response.crspData || []);
         setFilteredData(response.crspData || []);
+      } else {
+        setError(response.message || 'Failed to load CRSP data');
       }
     } catch (err) {
       console.error('Error loading CRSP:', err);
-      setError('Failed to load CRSP data. Make sure backend is running.');
+      setError('Failed to load CRSP data. Make sure you are logged in.');
     } finally {
       setLoading(false);
     }
@@ -118,7 +110,7 @@ const AdminCRSP = () => {
         trim: formData.trim
       }];
 
-      const response = await saveCRSPData(vehicleData);
+      const response = await crspService.saveCRSPData(vehicleData);
       
       if (response.success) {
         setSuccessMessage(`Added ${response.results?.created || 1} vehicle(s) successfully!`);
@@ -126,6 +118,8 @@ const AdminCRSP = () => {
         resetForm();
         loadCRSPData();
         setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(response.message || 'Failed to add vehicle');
       }
     } catch (err) {
       alert('Error adding vehicle: ' + err.message);
@@ -137,7 +131,7 @@ const AdminCRSP = () => {
   const handleEditVehicle = (vehicle) => {
     const v = vehicle.vehicle || vehicle.vehicleDetails || {};
     setFormData({
-      id: vehicle._id,
+      id: vehicle.id,
       make: v.make || '',
       model: v.model || '',
       year: v.year || new Date().getFullYear(),
@@ -172,7 +166,7 @@ const AdminCRSP = () => {
         trim: formData.trim
       }];
 
-      const response = await saveCRSPData(vehicleData);
+      const response = await crspService.saveCRSPData(vehicleData);
       
       if (response.success) {
         setSuccessMessage('Vehicle updated successfully!');
@@ -180,6 +174,8 @@ const AdminCRSP = () => {
         resetForm();
         loadCRSPData();
         setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(response.message || 'Failed to update vehicle');
       }
     } catch (err) {
       alert('Error updating vehicle: ' + err.message);
@@ -194,15 +190,22 @@ const AdminCRSP = () => {
   };
 
   const confirmDelete = async () => {
-    if (!selectedVehicle || !selectedVehicle._id) return;
+    if (!selectedVehicle || !selectedVehicle.id) {
+      alert('No vehicle selected for deletion');
+      return;
+    }
 
     setLoading(true);
     try {
-      await deleteCRSP(selectedVehicle._id);
-      setSuccessMessage('Vehicle deleted successfully!');
-      setShowDeleteModal(false);
-      loadCRSPData();
-      setTimeout(() => setSuccessMessage(null), 3000);
+      const response = await crspService.deleteCRSP(selectedVehicle.id);
+      if (response.success) {
+        setSuccessMessage('Vehicle deleted successfully!');
+        setShowDeleteModal(false);
+        loadCRSPData();
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(response.message || 'Failed to delete vehicle');
+      }
     } catch (err) {
       alert('Error deleting vehicle: ' + err.message);
     } finally {
@@ -210,121 +213,23 @@ const AdminCRSP = () => {
     }
   };
 
-  const handleBulkImport = async () => {
-    if (!bulkData.trim()) {
-      alert('Please paste CSV data');
-      return;
-    }
-
-    setImporting(true);
-    try {
-      // Parse CSV data
-      const lines = bulkData.trim().split('\n');
-      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-      
-      const vehicles = [];
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',').map(v => v.trim());
-        if (values.length < 4) continue;
-
-        const vehicle = {};
-        headers.forEach((h, idx) => {
-          vehicle[h] = values[idx];
-        });
-
-        // Map to our format
-        if (vehicle.make && vehicle.model && vehicle.retailprice) {
-          vehicles.push({
-            make: vehicle.make,
-            model: vehicle.model,
-            year: parseInt(vehicle.year) || new Date().getFullYear(),
-            engineCC: parseInt(vehicle.enginecc) || 1500,
-            fuelType: vehicle.fueltype || 'petrol',
-            transmission: vehicle.transmission || 'automatic',
-            bodyType: vehicle.bodytype || 'sedan',
-            retailPrice: parseFloat(vehicle.retailprice.replace(/[^0-9.]/g, '')),
-            month: vehicle.month || new Date().toISOString().slice(0, 7)
-          });
-        }
-      }
-
-      if (vehicles.length === 0) {
-        alert('No valid vehicles found in the data');
-        return;
-      }
-
-      const response = await saveCRSPData(vehicles);
-      
-      if (response.success) {
-        setSuccessMessage(`Imported ${vehicles.length} vehicles successfully!`);
-        setShowBulkModal(false);
-        setBulkData('');
-        loadCRSPData();
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }
-    } catch (err) {
-      alert('Error importing data: ' + err.message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleExportCSV = () => {
-    if (crspData.length === 0) {
-      alert('No data to export');
-      return;
-    }
-
-    const headers = ['Make', 'Model', 'Year', 'Engine CC', 'Fuel Type', 'Transmission', 'Body Type', 'Retail Price', 'Month'];
-    const rows = crspData.map(v => {
-      const vehicle = v.vehicle || v.vehicleDetails || {};
-      return [
-        vehicle.make || '',
-        vehicle.model || '',
-        vehicle.year || '',
-        vehicle.engineCC || '',
-        vehicle.fuelType || '',
-        vehicle.transmission || '',
-        vehicle.bodyType || '',
-        v.retailPrice || '',
-        v.month || ''
-      ];
-    });
-
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `crsp-export-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const downloadTemplate = () => {
-    const template = 'make,model,year,enginecc,fueltype,transmission,bodytype,retailprice,month\nToyota,Vitz,2025,1500,petrol,automatic,hatchback,1850000,2025-07';
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'crsp-template.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
   const handleLoadSample = async () => {
-    if (!confirm('This will load sample CRSP data. Continue?')) return;
-    
-    setLoading(true);
-    try {
-      const response = await loadSampleCRSP();
-      setSuccessMessage(response.message || 'Sample data loaded!');
-      loadCRSPData();
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } catch (err) {
-      alert('Error loading sample: ' + err.message);
-    } finally {
-      setLoading(false);
+    if (window.confirm('This is for demo purposes only. Real data should be uploaded via Excel files. Continue?')) {
+      setLoading(true);
+      try {
+        const response = await crspService.loadSampleCRSP();
+        if (response.success) {
+          setSuccessMessage(response.message || 'Sample data loaded!');
+          loadCRSPData();
+          setTimeout(() => setSuccessMessage(null), 3000);
+        } else {
+          setError(response.message || 'Please upload real CRSP data via Excel file');
+        }
+      } catch (err) {
+        alert('Error loading sample: ' + err.message);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -428,21 +333,10 @@ const AdminCRSP = () => {
           {/* Action Buttons */}
           <div className="action-bar">
             <div className="action-group">
-              <Button variant="primary" icon="➕" onClick={openAddModal}>
-                Add Vehicle
+              <Button variant="primary" onClick={openAddModal}>
+                + Add Vehicle
               </Button>
-              <Button variant="secondary" icon="📋" onClick={() => setShowBulkModal(true)}>
-                Bulk Import
-              </Button>
-              <Button variant="secondary" icon="📤" onClick={handleExportCSV}>
-                Export CSV
-              </Button>
-            </div>
-            <div className="action-group">
-              <Button variant="info" icon="🔄" onClick={handleLoadSample} loading={loading}>
-                Load Sample Data
-              </Button>
-              <Button variant="secondary" icon="🔄" onClick={loadCRSPData} loading={loading}>
+              <Button variant="secondary" onClick={loadCRSPData} loading={loading}>
                 Refresh
               </Button>
             </div>
@@ -450,7 +344,7 @@ const AdminCRSP = () => {
 
           {/* CRSP Table */}
           <div className="crsp-table-section">
-            <Card title={`CRSP Database (${filteredData.length} vehicles)`} icon="📋" padding>
+            <Card title={`CRSP Database (${filteredData.length} vehicles)`} padding>
               {loading ? (
                 <div className="loading-data">
                   <div className="loading-spinner"></div>
@@ -460,7 +354,7 @@ const AdminCRSP = () => {
                 <div className="no-data">
                   <div className="no-data-icon">🚗</div>
                   <h3>No Vehicles Found</h3>
-                  <p>Add vehicles manually or import from CSV</p>
+                  <p>Add vehicles manually or import from CSV via MyCRSP page</p>
                   <Button variant="primary" onClick={openAddModal}>Add First Vehicle</Button>
                 </div>
               ) : (
@@ -479,7 +373,7 @@ const AdminCRSP = () => {
                   {filteredData.slice(0, 100).map((vehicle, index) => {
                     const v = vehicle.vehicle || vehicle.vehicleDetails || {};
                     return (
-                      <div key={vehicle._id || index} className="table-row">
+                      <div key={vehicle.id || index} className="table-row">
                         <div className="table-cell cell-vehicle">
                           <span className="vehicle-icon">🚗</span>
                           <div className="vehicle-info">
@@ -586,7 +480,6 @@ const AdminCRSP = () => {
                 <option value="diesel">Diesel</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="electric">Electric</option>
-                <option value="lpg">LPG</option>
               </select>
             </div>
             <div className="form-col">
@@ -615,9 +508,6 @@ const AdminCRSP = () => {
                 <option value="hatchback">Hatchback</option>
                 <option value="pickup">Pickup</option>
                 <option value="van">Van</option>
-                <option value="wagon">Wagon</option>
-                <option value="coupe">Coupe</option>
-                <option value="convertible">Convertible</option>
               </select>
             </div>
             <Input
@@ -699,7 +589,6 @@ const AdminCRSP = () => {
                 <option value="diesel">Diesel</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="electric">Electric</option>
-                <option value="lpg">LPG</option>
               </select>
             </div>
             <div className="form-col">
@@ -728,9 +617,6 @@ const AdminCRSP = () => {
                 <option value="hatchback">Hatchback</option>
                 <option value="pickup">Pickup</option>
                 <option value="van">Van</option>
-                <option value="wagon">Wagon</option>
-                <option value="coupe">Coupe</option>
-                <option value="convertible">Convertible</option>
               </select>
             </div>
             <Input
@@ -789,49 +675,6 @@ const AdminCRSP = () => {
           <Button variant="danger" onClick={confirmDelete} loading={loading}>
             Delete Permanently
           </Button>
-        </div>
-      </Modal>
-
-      {/* Bulk Import Modal */}
-      <Modal
-        isOpen={showBulkModal}
-        onClose={() => setShowBulkModal(false)}
-        title="Bulk Import Vehicles"
-        size="large"
-      >
-        <div className="bulk-import-modal">
-          <div className="bulk-instructions">
-            <h4>Instructions:</h4>
-            <ol>
-              <li>Download the CSV template below</li>
-              <li>Fill in your vehicle data following the same format</li>
-              <li>Copy and paste the CSV data into the text area</li>
-              <li>Click Import to add all vehicles</li>
-            </ol>
-            <Button variant="secondary" icon="📥" onClick={downloadTemplate}>
-              Download CSV Template
-            </Button>
-          </div>
-          
-          <div className="bulk-data-input">
-            <label className="form-label">Paste CSV Data:</label>
-            <textarea
-              value={bulkData}
-              onChange={(e) => setBulkData(e.target.value)}
-              placeholder="make,model,year,enginecc,fueltype,transmission,bodytype,retailprice,month&#10;Toyota,Vitz,2025,1500,petrol,automatic,hatchback,1850000,2025-07"
-              rows={10}
-              className="bulk-textarea"
-            />
-          </div>
-          
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setShowBulkModal(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleBulkImport} loading={importing}>
-              Import {bulkData ? bulkData.split('\n').length - 1 : 0} Vehicles
-            </Button>
-          </div>
         </div>
       </Modal>
     </div>

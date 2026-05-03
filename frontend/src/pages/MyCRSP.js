@@ -1,8 +1,11 @@
+// src/pages/MyCRSP.js - Fixed version with proper keys
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllCRSP, saveCRSPData, deleteCRSP } from '../services/crspService';
+import crspService from '../services/crspService';
 import * as XLSX from 'xlsx';
 import './MyCRSP.css';
+
+const { getAllCRSP, saveCRSPData, deleteCRSP } = crspService;
 
 // ==================== Excel Parsing Helpers ====================
 
@@ -282,7 +285,7 @@ const MyCRSP = ({ user }) => {
     navigate('/vehicle-lookup');
   };
 
-// Handle delete CRSP
+  // Handle delete CRSP
   const handleDeleteCRSP = async (crspId) => {
     if (!window.confirm('Are you sure you want to delete this CRSP entry?')) {
       return;
@@ -643,7 +646,7 @@ const MyCRSP = ({ user }) => {
               </thead>
               <tbody>
                 {previewData.map((vehicle, index) => (
-                  <tr key={index}>
+                  <tr key={`preview-${index}-${vehicle.make}-${vehicle.model}`}>
                     <td>{vehicle.make}</td>
                     <td>{vehicle.model}</td>
                     <td>{vehicle.year}</td>
@@ -719,30 +722,30 @@ const MyCRSP = ({ user }) => {
                     const model = crsp.vehicle ? crsp.vehicle.model : (crsp.vehicleDetails?.model || '');
                     return make && make !== '-' && model && model !== '-';
                   })
-                  .map((crsp) => (
-                  <tr key={crsp._id}>
-                    <td>{crsp.vehicle ? crsp.vehicle.make : (crsp.vehicleDetails?.make || '-')}</td>
-                    <td>{crsp.vehicle ? crsp.vehicle.model : (crsp.vehicleDetails?.model || '-')}</td>
-                    <td>{crsp.vehicle ? crsp.vehicle.year : (crsp.vehicleDetails?.year || '-')}</td>
-                    <td>{crsp.month || '-'}</td>
-                    <td>{formatCurrency(crsp.retailPrice)}</td>
-                    <td>{formatCurrency(crsp.customsValue)}</td>
-                    <td><span className={'source-badge source-' + crsp.source}>{crsp.source}</span></td>
-                    <td>{crsp.createdAt ? new Date(crsp.createdAt).toLocaleDateString() : '-'}</td>
-                    <td className="action-buttons">
-                      <button className="btn btn-sm btn-primary" onClick={() => handleLookupVehicle(crsp)}>
-                        Lookup
-                      </button>
-                      <button 
-                        className="btn btn-sm btn-danger" 
-                        onClick={() => handleDeleteCRSP(crsp._id)}
-                        disabled={deleting === crsp._id}
-                      >
-                        {deleting === crsp._id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                  .map((crsp, index) => (
+                    <tr key={crsp._id || `crsp-${index}-${crsp.createdAt}`}>
+                      <td>{crsp.vehicle ? crsp.vehicle.make : (crsp.vehicleDetails?.make || '-')}</td>
+                      <td>{crsp.vehicle ? crsp.vehicle.model : (crsp.vehicleDetails?.model || '-')}</td>
+                      <td>{crsp.vehicle ? crsp.vehicle.year : (crsp.vehicleDetails?.year || '-')}</td>
+                      <td>{crsp.month || '-'}</td>
+                      <td>{formatCurrency(crsp.retailPrice)}</td>
+                      <td>{formatCurrency(crsp.customsValue)}</td>
+                      <td><span className={'source-badge source-' + crsp.source}>{crsp.source}</span></td>
+                      <td>{crsp.createdAt ? new Date(crsp.createdAt).toLocaleDateString() : '-'}</td>
+                      <td className="action-buttons">
+                        <button className="btn btn-sm btn-primary" onClick={() => handleLookupVehicle(crsp)}>
+                          Lookup
+                        </button>
+                        <button 
+                          className="btn btn-sm btn-danger" 
+                          onClick={() => handleDeleteCRSP(crsp._id)}
+                          disabled={deleting === crsp._id}
+                        >
+                          {deleting === crsp._id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

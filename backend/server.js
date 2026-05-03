@@ -1,212 +1,266 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const dotenv = require('dotenv');
+// SMArt-tax Backend Server
+// Only Node.js built-in modules - no external dependencies!
 
-// Load environment variables
-dotenv.config();
+const http = require('http');
+const url = require('url');
 
-// Load local overrides (for development) - this will override the MONGODB_URI
-dotenv.config({ path: '.env.local', override: true });
+const PORT = 5000;
 
-// Import routes
-const authRoutes = require('./routes/auth');
-const vehicleRoutes = require('./routes/vehicles');
-const crspRoutes = require('./routes/crsp_new');
-const taxRoutes = require('./routes/tax');
-const documentRoutes = require('./routes/documents');
-const reportRoutes = require('./routes/reports');
-const adminRoutes = require('./routes/admin');
+// Create HTTP server
+const server = http.createServer((req, res) => {
+  // CORS headers - allow all origins
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+  const parsedUrl = url.parse(req.url, true);
+  const pathname = parsedUrl.pathname;
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  console.log(`${req.method} ${pathname}`);
 
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
+  // API Routes
+  if (pathname === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }));
+    return;
+  }
 
-// Database connection with enhanced options
-const connectDB = async () => {
-  try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/smarttax';
-    
-    console.log(`🔌 Attempting to connect to MongoDB: ${mongoURI}`);
-    
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 10000, // Increased timeout
-      socketTimeoutMS: 45000,
-      family: 4, // Force IPv4
-      retryWrites: true,
-      w: 'majority'
-    });
-    
-    console.log('✅ MongoDB connected successfully!');
-    console.log(`📊 Database: ${mongoose.connection.name}`);
-    console.log(`🏠 Host: ${mongoose.connection.host}`);
-    console.log(`🔗 Port: ${mongoose.connection.port}`);
-    
-    // Handle connection events
-    mongoose.connection.on('error', err => {
-      console.error('❌ MongoDB connection error:', err);
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      console.log('⚠️ MongoDB disconnected');
-    });
-    
-    mongoose.connection.on('reconnected', () => {
-      console.log('🔄 MongoDB reconnected');
-    });
-
-    // Auto-seed if CRSP empty
-    setTimeout(async () => {
+  // Registration endpoint - calls Supabase Auth API
+  if (pathname === '/api/auth/register' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
       try {
-        const CRSP = require('./models/CRSP');
-        const count = await CRSP.countDocuments({ isActive: true });
-        if (count === 0) {
-          console.log('🛢️  CRSP empty, auto-loading samples...');
-          const response = await fetch('http://localhost:' + PORT + '/api/crsp/load-sample', { method: 'POST' });
-          const data = await response.json();
-          console.log('✅ Auto-seed complete:', data);
-        } else {
-          console.log('✅ CRSP already has data (', count, 'records)');
+        const { email, password, name, phone, company, kraPin, role } = JSON.parse(body);
+        
+        // Validate input
+        if (!email || !password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: 'Email and password are required' }));
+          return;
         }
-      } catch (seedError) {
-        console.log('⚠️  Auto-seed failed (normal if backend not ready):', seedError.message);
+        
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: 'Invalid email format' }));
+          return;
+        }
+        
+        // Password validation - Supabase requires at least 6 characters
+        if (password.length < 6) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: 'Password must be at least 6 characters' }));
+          return;
+        }
+        
+        const supabaseUrl = 'https://kxybgqkmcogbeuybaphi.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4eWJncWttY29nYmV1eWJhcGhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTkzNzYsImV4cCI6MjA5MjkzNTM3Nn0.j6_tPGfYq9ATIhOlhrWZur_c-JIB6h5a6YedJ8ufis4';
+        
+        // Call Supabase Auth API - signup sends confirmation email
+        const userMetadata = {};
+        if (name) userMetadata.full_name = name;
+        if (phone) userMetadata.phone = phone;
+        if (company) userMetadata.company = company;
+        if (kraPin) userMetadata.kra_pin = kraPin;
+        if (role) userMetadata.role = role;
+        
+        const authResponse = await fetch(`${supabaseUrl}/auth/v1/signup`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          },
+          body: JSON.stringify({ 
+            email: email,
+            password: password,
+            options: Object.keys(userMetadata).length > 0 ? { data: userMetadata } : undefined
+          })
+        });
+        
+        const authData = await authResponse.json();
+        
+        console.log('Supabase signup response:', JSON.stringify(authData));
+        
+        // Handle rate limit specifically
+        if (authResponse.status === 429 || (authData.msg && authData.msg.includes('rate limit'))) {
+          res.writeHead(429, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: 'Too many registration attempts. Please wait a few minutes before trying again.',
+            rateLimited: true
+          }));
+          return;
+        }
+        
+        // Supabase returns different responses based on email confirmation setting
+        if (authData.access_token) {
+          // Email confirmation disabled - auto-confirm
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true, 
+            token: authData.access_token,
+            user: authData.user
+          }));
+        } else if (authData.id) {
+          // Email confirmation enabled - user needs to verify email
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true, 
+            message: 'Registration successful! Please check your email to confirm your account.',
+            needsEmailConfirmation: true,
+            email: email
+          }));
+        } else if (authData.msg && authData.msg.includes('already been registered')) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: 'User already exists. Please login instead.'
+          }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: authData.msg || authData.error_description || 'Registration failed'
+          }));
+        }
+      } catch (err) {
+        console.error('Registration error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Server error' }));
       }
-    }, 5000); // Wait 5s for routes
-    
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', error.message);
-    console.log('\n🔧 Troubleshooting steps:');
-    console.log('1. Check if MongoDB service is running:');
-    console.log('   - Open Services (services.msc)');
-    console.log('   - Find "MongoDB Server (MongoDB)"');
-    console.log('   - Ensure it\'s "Running"');
-    console.log('\n2. Test connection with mongo shell:');
-    console.log('   - Open Command Prompt as Administrator');
-    console.log('   - Run: mongo --host 127.0.0.1:27017');
-    console.log('\n3. Restart MongoDB service:');
-    console.log('   - net stop MongoDB');
-    console.log('   - net start MongoDB');
-    console.log('\n4. Check if port 27017 is in use:');
-    console.log('   - netstat -ano | findstr :27017');
-    
-    // Don't exit in development, allow auto-reconnect
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    }
-  }
-};
-
-// Connect to database
-connectDB();
-
-// Basic route
-app.get('/', (req, res) => {
-  const dbStatus = mongoose.connection.readyState;
-  let dbStatusText = 'unknown';
-  switch (dbStatus) {
-    case 0: dbStatusText = 'disconnected'; break;
-    case 1: dbStatusText = 'connected'; break;
-    case 2: dbStatusText = 'connecting'; break;
-    case 3: dbStatusText = 'disconnecting'; break;
-  }
-  
-  res.json({ 
-    message: 'SmartTax API Server',
-    version: '1.0.0',
-    status: 'running',
-    database: dbStatusText,
-    endpoints: {
-      auth: '/api/auth',
-      vehicles: '/api/vehicles',
-      crsp: '/api/crsp',
-      tax: '/api/tax',
-      documents: '/api/documents',
-      reports: '/api/reports',
-      admin: '/api/admin'
-    }
-  });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  const dbState = mongoose.connection.readyState;
-  const dbStatus = dbState === 1 ? 'connected' : 'disconnected';
-  
-  res.json({ 
-    status: 'OK',
-    timestamp: new Date(),
-    uptime: process.uptime(),
-    database: dbStatus,
-    databaseState: dbState
-  });
-});
-
-// Test database endpoint
-app.get('/test-db', async (req, res) => {
-  try {
-    const db = mongoose.connection.db;
-    const collections = await db.listCollections().toArray();
-    const collectionNames = collections.map(c => c.name);
-    
-    res.json({
-      success: true,
-      database: mongoose.connection.name,
-      collections: collectionNames,
-      totalCollections: collectionNames.length
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      message: 'Database test failed'
-    });
+    return;
   }
-});
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/vehicles', vehicleRoutes);
-app.use('/api/crsp', crspRoutes);
-app.use('/api/tax', taxRoutes);
-app.use('/api/documents', documentRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/admin', adminRoutes);
+  // Login endpoint - calls Supabase Auth API  
+  if (pathname === '/api/auth/login' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { email, password } = JSON.parse(body);
+        
+        // Validate input
+        if (!email || !password) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: false, message: 'Email and password are required' }));
+          return;
+        }
+        
+        const supabaseUrl = 'https://kxybgqkmcogbeuybaphi.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt4eWJncWttY29nYmV1eWJhcGhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTkzNzYsImV4cCI6MjA5MjkzNTM3Nn0.j6_tPGfYq9ATIhOlhrWZur_c-JIB6h5a6YedJ8ufis4';
+        
+        // Call Supabase Auth API
+        const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`
+          },
+          body: JSON.stringify({ 
+            email: email,
+            password: password
+          })
+        });
+        
+        const authData = await authResponse.json();
+        
+        console.log('Supabase login response:', JSON.stringify(authData));
+        
+        if (authData.access_token) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: true, 
+            token: authData.access_token,
+            user: authData.user
+          }));
+        } else if (authData.msg && authData.msg.includes('Email not confirmed')) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: 'Please confirm your email address first. Check your inbox for the confirmation link.'
+          }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ 
+            success: false, 
+            message: authData.msg || authData.error_description || 'Invalid login credentials'
+          }));
+        }
+      } catch (err) {
+        console.error('Login error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Server error' }));
+      }
+    });
+    return;
+  }
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.originalUrl} not found`
-  });
-});
+  // Vehicle lookup endpoint
+  if (pathname === '/api/vehicles/lookup' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const searchParams = JSON.parse(body);
+        
+        // This is a proxy to Supabase - you'll implement the actual lookup
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          vehicles: [],
+          message: 'Use Supabase directly for vehicle lookup'
+        }));
+      } catch (err) {
+        console.error('Lookup error:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, message: 'Server error' }));
+      }
+    });
+    return;
+  }
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.stack : {}
-  });
+  // CRSP endpoints
+  if (pathname === '/api/crsp/all' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      crspData: [],
+      message: 'Use Supabase directly for CRSP data'
+    }));
+    return;
+  }
+
+  if (pathname === '/api/crsp/makes' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      success: true, 
+      makes: [],
+      message: 'Use Supabase directly for makes'
+    }));
+    return;
+  }
+
+  // 404 for unknown routes
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'Not found' }));
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 SmartTax server running on port ${PORT}`);
-  console.log(`📁 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 Base URL: http://localhost:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`SMArt-tax Backend API running on http://localhost:${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`Register: http://localhost:${PORT}/api/auth/register`);
+  console.log(`Login: http://localhost:${PORT}/api/auth/login`);
 });
-
-module.exports = app;
