@@ -1,371 +1,327 @@
-// src/services/crspService.js
-import { supabase, storage } from './supabaseClient';
-import * as XLSX from 'xlsx';
+// src/services/crspService.js - COMPLETE REWRITE
+import { supabase } from './supabaseClient';
 
-const parseNumber = (val) => {
-  if (!val) return 0;
-  if (typeof val === 'number') return val;
-  const cleaned = String(val).replace(/[,$\sKES]/g, '').trim();
-  return parseFloat(cleaned) || 0;
-};
-
-const normalizeFuelType = (value) => {
-  if (!value) return 'petrol';
-  const val = String(value).toLowerCase().trim();
-  const mapping = {
-    'gasoline': 'petrol', 'gas': 'petrol', 'petrol': 'petrol',
-    'diesel': 'diesel', 'electric': 'electric', 'hybrid': 'hybrid',
-    'plug-in hybrid': 'hybrid', 'phev': 'hybrid'
-  };
-  return mapping[val] || 'petrol';
-};
-
-const normalizeTransmission = (value) => {
-  if (!value) return 'automatic';
-  const val = String(value).toLowerCase().trim();
-  const mapping = {
-    'at': 'automatic', 'aut': 'automatic', 'auto': 'automatic',
-    'mt': 'manual', 'man': 'manual', 'manual': 'manual',
-    'cvt': 'CVT', 'semi-auto': 'semi-automatic'
-  };
-  return mapping[val] || 'automatic';
-};
-
-const normalizeBodyType = (value) => {
-  if (!value) return 'sedan';
-  const val = String(value).toLowerCase().trim();
-  const mapping = {
-    'sedan': 'sedan', 'saloon': 'sedan', 'suv': 'SUV', 'jeep': 'SUV',
-    'hatchback': 'hatchback', 'van': 'van', 'pickup': 'truck',
-    'bus': 'bus', 'truck': 'truck'
-  };
-  return mapping[val] || 'sedan';
-};
-
-export const crspService = {
-  async getAllCRSP(limit = 500, month = null) {
+const crspService = {
+  // Get all CRSP data with optional limit
+  async getAllCRSP(limit = 500) {
     try {
-      let query = supabase
-        .from('crsp')
-        .select(`
-          *,
-          vehicle:vehicles(*)
-        `)
-        .eq('is_active', true)
-        .order('month', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (month) {
-        query = query.eq('month', month);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      return {
-        success: true,
-        crspData: data || [],
-        count: data?.length || 0,
-        monthFilter: month || null
-      };
-    } catch (error) {
-      console.error('Get all CRSP error:', error);
-      return { success: false, message: error.message, crspData: [] };
-    }
-  },
-
-  async getMyCRSP() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
       const { data, error } = await supabase
         .from('crsp')
-        .select(`
-          *,
-          vehicle:vehicles(*)
-        `)
-        .eq('owner_id', user.id)
-        .eq('is_active', true)
+        .select('*')
+        .limit(limit)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-
       return { success: true, crspData: data || [] };
     } catch (error) {
-      console.error('Get my CRSP error:', error);
-      return { success: false, message: error.message, crspData: [] };
+      console.error('Error fetching CRSP:', error);
+      return { success: false, error: error.message, crspData: [] };
     }
   },
 
+  // Get CRSP data by ID
   async getCRSPById(id) {
     try {
       const { data, error } = await supabase
         .from('crsp')
-        .select(`
-          *,
-          vehicle:vehicles(*),
-          uploaded_by:uploaded_by(id, name, email),
-          owner:owner_id(id, name, email)
-        `)
+        .select('*')
         .eq('id', id)
         .single();
 
       if (error) throw error;
-      return { success: true, crsp: data };
+      return { success: true, crspData: data };
     } catch (error) {
-      console.error('Get CRSP by ID error:', error);
+      console.error('Error fetching CRSP by ID:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Get CRSP data by vehicle details
+  async getCRSPByVehicle(make, model, year = null) {
+    try {
+      let query = supabase
+        .from('crsp')
+        .select('*')
+        .eq('vehicle_details->>make', make)
+        .eq('vehicle_details->>model', model);
+
+      if (year) {
+        query = query.eq('vehicle_details->>year', year);
+      }
+
+      const { data, error } = await query.limit(10);
+
+      if (error) throw error;
+      return { success: true, crspData: data || [] };
+    } catch (error) {
+      console.error('Error fetching CRSP by vehicle:', error);
+      return { success: false, error: error.message, crspData: [] };
+    }
+  },
+
+  // Save CRSP data to database
+  async saveCRSPData(vehicles) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        return { success: false, message: 'You must be logged in to save CRSP data' };
+      }
+
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+
+      for (const vehicle of vehicles) {
+        try {
+          // Check if vehicle already exists
+          const { data: existing } = await supabase
+            .from('crsp')
+            .select('id')
+            .eq('vehicle_details->>make', vehicle.make)
+            .eq('vehicle_details->>model', vehicle.model)
+            .eq('vehicle_details->>year', vehicle.year)
+            .eq('month', vehicle.month)
+            .maybeSingle();
+
+          const vehicleDetails = {
+            make: vehicle.make,
+            model: vehicle.model,
+            year: vehicle.year,
+            engineCC: vehicle.engineCC,
+            fuelType: vehicle.fuelType,
+            transmission: vehicle.transmission,
+            bodyType: vehicle.bodyType,
+            trim: vehicle.trim || ''
+          };
+
+          if (existing) {
+            // Update existing record
+            const { error: updateError } = await supabase
+              .from('crsp')
+              .update({
+                retail_price: vehicle.retailPrice,
+                customs_value: vehicle.customsValue || vehicle.retailPrice * 0.8,
+                wholesale_price: vehicle.wholesalePrice || vehicle.retailPrice * 0.7,
+                vehicle_details: vehicleDetails,
+                updated_at: new Date().toISOString(),
+                updated_by: user.id
+              })
+              .eq('id', existing.id);
+
+            if (updateError) throw updateError;
+            updated++;
+          } else {
+            // Insert new record
+            const { error: insertError } = await supabase
+              .from('crsp')
+              .insert({
+                retail_price: vehicle.retailPrice,
+                customs_value: vehicle.customsValue || vehicle.retailPrice * 0.8,
+                wholesale_price: vehicle.wholesalePrice || vehicle.retailPrice * 0.7,
+                vehicle_details: vehicleDetails,
+                month: vehicle.month || new Date().toISOString().slice(0, 7),
+                source: 'upload',
+                is_active: true,
+                created_by: user.id
+              });
+
+            if (insertError) throw insertError;
+            created++;
+          }
+        } catch (err) {
+          console.error('Error processing vehicle:', vehicle, err);
+          skipped++;
+        }
+      }
+
+      return { success: true, results: { created, updated, skipped } };
+    } catch (error) {
+      console.error('Error saving CRSP data:', error);
       return { success: false, message: error.message };
     }
   },
 
+  // Load sample CRSP data
+  async loadSampleCRSP() {
+    const sampleVehicles = [
+      {
+        make: 'Toyota',
+        model: 'Vitz',
+        year: 2020,
+        engineCC: 1000,
+        fuelType: 'petrol',
+        transmission: 'automatic',
+        bodyType: 'hatchback',
+        retailPrice: 850000,
+        customsValue: 680000,
+        month: '2024-01'
+      },
+      {
+        make: 'Toyota',
+        model: 'Vitz',
+        year: 2021,
+        engineCC: 1000,
+        fuelType: 'petrol',
+        transmission: 'automatic',
+        bodyType: 'hatchback',
+        retailPrice: 950000,
+        customsValue: 760000,
+        month: '2024-01'
+      },
+      {
+        make: 'Suzuki',
+        model: 'Swift',
+        year: 2020,
+        engineCC: 1200,
+        fuelType: 'petrol',
+        transmission: 'automatic',
+        bodyType: 'hatchback',
+        retailPrice: 950000,
+        customsValue: 760000,
+        month: '2024-01'
+      },
+      {
+        make: 'Suzuki',
+        model: 'Swift',
+        year: 2021,
+        engineCC: 1200,
+        fuelType: 'petrol',
+        transmission: 'automatic',
+        bodyType: 'hatchback',
+        retailPrice: 1050000,
+        customsValue: 840000,
+        month: '2024-01'
+      },
+      {
+        make: 'Mazda',
+        model: 'Demio',
+        year: 2020,
+        engineCC: 1500,
+        fuelType: 'petrol',
+        transmission: 'automatic',
+        bodyType: 'hatchback',
+        retailPrice: 1100000,
+        customsValue: 880000,
+        month: '2024-01'
+      }
+    ];
+
+    return this.saveCRSPData(sampleVehicles);
+  },
+
+  // Delete CRSP entry
+  async deleteCRSP(id) {
+    try {
+      const { error } = await supabase
+        .from('crsp')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting CRSP:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Get unique makes
   async getUniqueMakes() {
     try {
       const { data, error } = await supabase
         .from('crsp')
         .select('vehicle_details')
-        .eq('is_active', true);
+        .limit(1000);
 
       if (error) throw error;
 
-      const makesSet = new Set();
-      data?.forEach(item => {
-        if (item.vehicle_details?.make) {
-          makesSet.add(item.vehicle_details.make);
-        }
-      });
-
-      const makes = Array.from(makesSet).sort();
-      return { success: true, makes, count: makes.length };
+      const makes = [...new Set(data.map(item => item.vehicle_details?.make).filter(Boolean))];
+      return { success: true, makes: makes.sort() };
     } catch (error) {
-      console.error('Get unique makes error:', error);
-      return { success: false, makes: [], count: 0 };
+      console.error('Error fetching makes:', error);
+      return { success: false, error: error.message, makes: [] };
     }
   },
 
-  async getModelsForMake(make) {
+  // Get models for a specific make
+  async getModelsByMake(make) {
     try {
       const { data, error } = await supabase
         .from('crsp')
         .select('vehicle_details')
-        .eq('is_active', true);
+        .eq('vehicle_details->>make', make)
+        .limit(500);
 
       if (error) throw error;
 
-      const modelsSet = new Set();
-      data?.forEach(item => {
-        if (item.vehicle_details?.make === make && item.vehicle_details?.model) {
-          modelsSet.add(item.vehicle_details.model);
-        }
-      });
-
-      const models = Array.from(modelsSet).sort();
-      return { success: true, models };
+      const models = [...new Set(data.map(item => item.vehicle_details?.model).filter(Boolean))];
+      return { success: true, models: models.sort() };
     } catch (error) {
-      console.error('Get models for make error:', error);
-      return { success: false, models: [] };
+      console.error('Error fetching models:', error);
+      return { success: false, error: error.message, models: [] };
     }
   },
 
-  async saveCRSPData(vehicles) {
+  // Search CRSP data
+  async searchCRSP(searchParams) {
     try {
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
-      if (userError) {
-        console.error('Auth error:', userError);
-        throw new Error('Not authenticated. Please login first.');
+      let query = supabase.from('crsp').select('*');
+
+      if (searchParams.make) {
+        query = query.eq('vehicle_details->>make', searchParams.make);
       }
-      
-      if (!user) {
-        throw new Error('No user found. Please login first.');
+      if (searchParams.model) {
+        query = query.eq('vehicle_details->>model', searchParams.model);
       }
-
-      console.log('Saving vehicles for user:', user.id, user.email);
-
-      const results = { created: 0, updated: 0, skipped: 0 };
-      const currentMonth = new Date().toISOString().slice(0, 7);
-
-      for (const v of vehicles) {
-        try {
-          const normalizedFuel = normalizeFuelType(v.fuelType);
-          const normalizedTrans = normalizeTransmission(v.transmission);
-          const normalizedBody = normalizeBodyType(v.bodyType);
-          const year = parseInt(v.year) || new Date().getFullYear();
-          const retailPrice = parseNumber(v.retailPrice);
-          
-          if (retailPrice <= 0) {
-            results.skipped++;
-            continue;
-          }
-
-          // Check if profile exists
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          if (profileError || !profile) {
-            console.warn('Profile not found for user:', user.id);
-            const { error: insertProfileError } = await supabase
-              .from('profiles')
-              .insert({
-                id: user.id,
-                email: user.email,
-                name: user.user_metadata?.name || user.email?.split('@')[0],
-                role: 'importer',
-                is_active: true
-              });
-            
-            if (insertProfileError) {
-              console.error('Failed to create profile:', insertProfileError);
-            }
-          }
-
-          // Find or create vehicle
-          let { data: existingVehicle } = await supabase
-            .from('vehicles')
-            .select('id')
-            .eq('make', v.make)
-            .eq('model', v.model)
-            .eq('year', year)
-            .maybeSingle();
-
-          let vehicleId;
-
-          if (existingVehicle) {
-            vehicleId = existingVehicle.id;
-            results.updated++;
-          } else {
-            const { data: newVehicle, error: insertError } = await supabase
-              .from('vehicles')
-              .insert({
-                make: v.make,
-                model: v.model,
-                year: year,
-                engine_cc: parseInt(v.engineCC) || 1500,
-                fuel_type: normalizedFuel,
-                transmission: normalizedTrans,
-                body_type: normalizedBody,
-                created_by: user.id,
-                last_updated_by: user.id,
-                status: 'active'
-              })
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error('Insert vehicle error:', insertError);
-              throw insertError;
-            }
-            vehicleId = newVehicle.id;
-            results.created++;
-          }
-
-          // Insert CRSP data
-          const month = v.month || currentMonth;
-          const crspData = {
-            vehicle_id: vehicleId,
-            vehicle_details: {
-              make: v.make,
-              model: v.model,
-              year: year,
-              engineCC: parseInt(v.engineCC) || 1500,
-              fuelType: normalizedFuel,
-              transmission: normalizedTrans,
-              bodyType: normalizedBody
-            },
-            month: month,
-            retail_price: retailPrice,
-            wholesale_price: retailPrice * 0.9,
-            customs_value: v.customsValue || retailPrice * 0.65,
-            source: 'user',
-            confidence_score: 95,
-            uploaded_by: user.id,
-            owner_id: user.id,
-            is_active: true
-          };
-
-          const { error: crspError } = await supabase
-            .from('crsp')
-            .insert(crspData);
-
-          if (crspError) {
-            console.error('CRSP insert error:', crspError);
-            throw crspError;
-          }
-          
-        } catch (err) {
-          console.error('Error saving vehicle:', v.make, v.model, err.message);
-          results.skipped++;
-        }
+      if (searchParams.year) {
+        query = query.eq('vehicle_details->>year', searchParams.year);
+      }
+      if (searchParams.minPrice) {
+        query = query.gte('retail_price', searchParams.minPrice);
+      }
+      if (searchParams.maxPrice) {
+        query = query.lte('retail_price', searchParams.maxPrice);
       }
 
-      return {
-        success: true,
-        message: `Saved! Created: ${results.created}, Updated: ${results.updated}, Skipped: ${results.skipped}`,
-        results
-      };
-    } catch (error) {
-      console.error('Save CRSP data error:', error);
-      return { success: false, message: error.message };
-    }
-  },
-
-  async deleteCRSP(id) {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { error } = await supabase
-        .from('crsp')
-        .update({ is_active: false })
-        .eq('id', id)
-        .eq('owner_id', user.id);
+      const { data, error } = await query.limit(100);
 
       if (error) throw error;
-      return { success: true };
+      return { success: true, crspData: data || [] };
     } catch (error) {
-      console.error('Delete CRSP error:', error);
-      return { success: false, message: error.message };
+      console.error('Error searching CRSP:', error);
+      return { success: false, error: error.message, crspData: [] };
     }
   },
 
-  async loadSampleCRSP() {
-    return { success: false, message: 'Use real data upload instead of sample data' };
-  },
-
-  async getStats() {
+  // Get CRSP statistics
+  async getCRSPStats() {
     try {
-      const { count: total, error: countError } = await supabase
+      const { data, error } = await supabase
         .from('crsp')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
+        .select('retail_price, month, vehicle_details')
+        .limit(1000);
 
-      if (countError) throw countError;
+      if (error) throw error;
 
-      const { data: months, error: monthsError } = await supabase
-        .from('crsp')
-        .select('month')
-        .eq('is_active', true)
-        .order('month', { ascending: false })
-        .limit(1);
-
-      const latestMonth = months?.[0]?.month || null;
+      const totalVehicles = data.length;
+      const uniqueMakes = new Set(data.map(item => item.vehicle_details?.make)).size;
+      const averagePrice = data.reduce((sum, item) => sum + (item.retail_price || 0), 0) / totalVehicles;
+      const months = [...new Set(data.map(item => item.month).filter(Boolean))];
 
       return {
         success: true,
         stats: {
-          totalVehicles: total || 0,
-          latestMonth
+          totalVehicles,
+          uniqueMakes,
+          averagePrice,
+          monthsCount: months.length,
+          latestMonth: months.sort().reverse()[0] || null
         }
       };
     } catch (error) {
-      console.error('Get CRSP stats error:', error);
-      return { success: false, stats: null };
+      console.error('Error fetching CRSP stats:', error);
+      return { success: false, error: error.message };
     }
   }
 };

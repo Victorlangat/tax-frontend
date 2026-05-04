@@ -1,6 +1,6 @@
-// src/pages/Dashboard.js - FIXED VERSION
+// src/pages/Dashboard.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { 
   Calculator, Car, Search, Download, 
   CheckCircle, ChevronRight, RefreshCw, BarChart3, 
@@ -10,7 +10,6 @@ import {
 import { supabase } from '../services/supabaseClient';
 
 const Dashboard = ({ user: propUser }) => {
-  const navigate = useNavigate();
   const [user, setUser] = useState(propUser);
   const [calculations, setCalculations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -86,7 +85,6 @@ const Dashboard = ({ user: propUser }) => {
 
   const handleDelete = async (id, e) => {
     e.stopPropagation();
-    // Use window.confirm instead of just confirm (ESLint fix)
     const userConfirmed = window.confirm('Delete this calculation?');
     if (!userConfirmed) return;
 
@@ -121,7 +119,6 @@ const Dashboard = ({ user: propUser }) => {
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
-      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: '700', margin: '0 0 8px' }}>Dashboard</h1>
@@ -148,7 +145,6 @@ const Dashboard = ({ user: propUser }) => {
         </button>
       </div>
 
-      {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '32px' }}>
         <StatCard icon={<BarChart3 />} color="#10b981" label="Total Calculations" value={stats.total} />
         <StatCard icon={<DollarSign />} color="#8b5cf6" label="Total Tax Estimated" value={formatCurrency(stats.totalTax)} />
@@ -156,9 +152,7 @@ const Dashboard = ({ user: propUser }) => {
         <StatCard icon={<TrendingUp />} color="#f59e0b" label="This Month" value={stats.thisMonth} />
       </div>
 
-      {/* Main Content */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px' }}>
-        {/* Calculations List */}
         <div style={{ background: 'white', borderRadius: '20px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
@@ -197,8 +191,6 @@ const Dashboard = ({ user: propUser }) => {
                     cursor: 'pointer',
                     transition: 'all 0.2s'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#f9fafb'}
                 >
                   <div style={{ width: '48px', height: '48px', background: 'linear-gradient(135deg, #667eea20 0%, #764ba220 100%)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#667eea' }}>
                     <Calculator size={24} />
@@ -219,8 +211,6 @@ const Dashboard = ({ user: propUser }) => {
                     <button
                       onClick={(e) => handleDelete(calc.id, e)}
                       style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', color: '#ef4444' }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                       <Trash2 size={18} />
                     </button>
@@ -232,7 +222,6 @@ const Dashboard = ({ user: propUser }) => {
           )}
         </div>
 
-        {/* Quick Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ background: 'white', borderRadius: '20px', padding: '24px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
             <h3 style={{ margin: '0 0 20px' }}>Quick Actions</h3>
@@ -244,7 +233,6 @@ const Dashboard = ({ user: propUser }) => {
             </div>
           </div>
 
-          {/* Tips Card */}
           <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '20px', padding: '24px', color: 'white' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
               <AlertCircle size={24} />
@@ -273,7 +261,6 @@ const Dashboard = ({ user: propUser }) => {
   );
 };
 
-// Stat Card Component
 const StatCard = ({ icon, color, label, value }) => (
   <div style={{ background: 'white', borderRadius: '20px', padding: '20px', display: 'flex', alignItems: 'center', gap: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
     <div style={{ width: '56px', height: '56px', background: `${color}20`, borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: color }}>
@@ -286,7 +273,6 @@ const StatCard = ({ icon, color, label, value }) => (
   </div>
 );
 
-// Action Link Component
 const ActionLink = ({ to, icon, color, bg, title, desc }) => (
   <Link 
     to={to} 
@@ -300,8 +286,6 @@ const ActionLink = ({ to, icon, color, bg, title, desc }) => (
       textDecoration: 'none', 
       transition: 'all 0.2s' 
     }}
-    onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
-    onMouseLeave={(e) => e.currentTarget.style.background = '#f9fafb'}
   >
     <div style={{ width: '44px', height: '44px', background: bg, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: color }}>
       {icon}
